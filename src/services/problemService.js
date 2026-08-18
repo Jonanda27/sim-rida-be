@@ -24,7 +24,6 @@ const getProblems = async (user) => {
     orderBy: { createdAt: 'desc' },
     include: {
       sector: true,
-      impactedArea: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },
@@ -54,7 +53,6 @@ const getProblemById = async (id, user) => {
     where: { id },
     include: {
       sector: true,
-      impactedArea: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },

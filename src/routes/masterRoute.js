@@ -12,13 +12,6 @@ const router = express.Router();
 router.get('/sectors', protect, getSectors);
 
 /**
- * @route   GET /api/v1/master/areas
- * @desc    Mendapatkan seluruh daftar Master Wilayah (Area) untuk pilihan dropdown
- * @access  Private
- */
-router.get('/areas', protect, getAreas);
-
-/**
  * @route   GET /api/v1/master/research-types
  * @desc    Mendapatkan seluruh daftar Master Jenis Penelitian untuk pilihan dropdown
  * @access  Private

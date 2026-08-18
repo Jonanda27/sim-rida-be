@@ -42,28 +42,24 @@ model MasterSector {
   problems    Problem[]
 }
 
-model MasterArea {
-  id       String    @id @default(uuid())
-  name     String    @unique
-  problems Problem[]
-}
-
 model Problem {
-  id              String        @id @default(uuid())
-  title           String
-  sectorId        String
-  sector          MasterSector  @relation(fields: [sectorId], references: [id])
-  description     String
-  impactedAreaId  String
-  impactedArea    MasterArea    @relation(fields: [impactedAreaId], references: [id])
-  attachments     String[]
-  status          ProblemStatus @default(SUBMITTED)
-  rejectionReason String?
-  createdById     String
-  createdBy       User          @relation(fields: [createdById], references: [id])
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  researches      Research[]
+  id               String        @id @default(uuid())
+  title            String
+  sectorId         String
+  sector           MasterSector  @relation(fields: [sectorId], references: [id])
+  targetCompletion String
+  background       String
+  mainFocus        String
+  impact           String
+  urgency          String
+  attachments      String[]
+  status           ProblemStatus @default(SUBMITTED)
+  rejectionReason  String?
+  createdById      String
+  createdBy        User          @relation(fields: [createdById], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  researches       Research[]
 }
 
 model MasterResearchType {
@@ -87,7 +83,11 @@ model Research {
   researchTypeId          String
   researchType            MasterResearchType @relation(fields: [researchTypeId], references: [id])
   objective               String
-  expectedSolution        String
+  researchQuestions       String
+  scope                   String
+  expectedOutput          String
+  expectedOutcome         String
+  successIndicators       String
   estimatedBudget         Float
   estimatedDurationMonths Int
   status                  ResearchStatus     @default(SUBMITTED)

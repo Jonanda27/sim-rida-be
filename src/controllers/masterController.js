@@ -12,18 +12,6 @@ const getSectors = async (req, res, next) => {
   }
 };
 
-const getAreas = async (req, res, next) => {
-  try {
-    const result = await masterService.getAllAreas();
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 const getResearchTypes = async (req, res, next) => {
   try {
     const result = await masterService.getAllResearchTypes();
@@ -38,6 +26,5 @@ const getResearchTypes = async (req, res, next) => {
 
 module.exports = {
   getSectors,
-  getAreas,
   getResearchTypes,
 };

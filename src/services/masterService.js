@@ -6,12 +6,6 @@ const getAllSectors = async () => {
   });
 };
 
-const getAllAreas = async () => {
-  return await prisma.masterArea.findMany({
-    orderBy: { name: 'asc' },
-  });
-};
-
 const getAllResearchTypes = async () => {
   return await prisma.masterResearchType.findMany({
     orderBy: { name: 'asc' },
@@ -20,6 +14,5 @@ const getAllResearchTypes = async () => {
 
 module.exports = {
   getAllSectors,
-  getAllAreas,
   getAllResearchTypes,
 };
