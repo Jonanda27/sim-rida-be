@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OPD
+  BRIDA
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role      @default(OPD)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  problems  Problem[]
+  researches Research[]
+}
+
+enum ProblemStatus {
+  DRAFT
+  SUBMITTED
+  VALID
+  REVISION_REQUIRED
+  REJECTED
+}
+
+model Problem {
+  id              String        @id @default(uuid())
+  title           String
+  sector          String
+  description     String
+  impactedArea    String
+  attachments     String[]
+  status          ProblemStatus @default(SUBMITTED)
+  rejectionReason String?
+  createdById     String
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  researches      Research[]
+}
+
+enum ResearchType {
+  PENGEMBANGAN_SISTEM
+  KAJIAN_STUDI
+  EVALUASI_KEBIJAKAN
+  SURVEI
+}
+
+enum ResearchStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model Research {
+  id                      String         @id @default(uuid())
+  problemId               String
+  problem                 Problem        @relation(fields: [problemId], references: [id])
+  title                   String
+  researchType            ResearchType
+  objective               String
+  expectedSolution        String
+  estimatedBudget         Float
+  estimatedDurationMonths Int
+  status                  ResearchStatus @default(SUBMITTED)
+  createdById             String
+  createdBy               User           @relation(fields: [createdById], references: [id])
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+}
