@@ -22,6 +22,29 @@ const createKakSchema = z.object({
   }),
 });
 
+const updateKakSchema = z.object({
+  body: z.object({
+    dasarPemikiran: z.string().min(10).optional(),
+    maksudTujuan: z.string().min(10).optional(),
+    ruangLingkup: z.string().min(10).optional(),
+    metodologi: z.string().min(10).optional(),
+    output: z.string().min(5).optional(),
+    outcome: z.string().min(5).optional(),
+    indikatorKinerja: z.string().min(5).optional(),
+    jadwalPelaksanaan: z.string().min(5).optional(),
+    penutup: z.string().min(5).optional(),
+    rabItems: z.array(
+      z.object({
+        description: z.string().min(3),
+        volume: z.number().min(1),
+        unit: z.string().min(1),
+        unitPrice: z.number().min(0),
+      })
+    ).min(1).optional(),
+  }),
+});
+
 module.exports = {
   createKakSchema,
+  updateKakSchema,
 };

@@ -27,6 +27,30 @@ const seedUsers = async (prisma) => {
     },
   });
   console.log(`- Created/Upserted user with id: ${opdUser.id} and role: OPD`);
+
+  const kepalaBridaUser = await prisma.user.upsert({
+    where: { email: 'kepala@test.com' },
+    update: {},
+    create: {
+      name: 'Kepala BRIDA',
+      email: 'kepala@test.com',
+      password: password,
+      role: 'KEPALA_BRIDA',
+    },
+  });
+  console.log(`- Created/Upserted user with id: ${kepalaBridaUser.id} and role: KEPALA_BRIDA`);
+
+  const mitraUser = await prisma.user.upsert({
+    where: { email: 'mitra@test.com' },
+    update: {},
+    create: {
+      name: 'Universitas Maju (Mitra)',
+      email: 'mitra@test.com',
+      password: password,
+      role: 'MITRA',
+    },
+  });
+  console.log(`- Created/Upserted user with id: ${mitraUser.id} and role: MITRA`);
 };
 
 module.exports = { seedUsers };

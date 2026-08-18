@@ -39,7 +39,32 @@ const getKak = async (req, res, next) => {
   }
 };
 
+const updateKak = async (req, res, next) => {
+  try {
+    const { researchId } = req.params;
+    const userId = req.user.id;
+    const kakData = req.body;
+
+    const result = await kakService.updateKak(researchId, userId, kakData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Draft KAK dan RAB berhasil diperbarui',
+      data: result,
+    });
+  } catch (error) {
+    if (error.message === 'Usulan penelitian tidak ditemukan' || error.message === 'KAK belum dibuat') {
+      res.status(404);
+    }
+    if (error.message === 'Tidak memiliki akses') {
+      res.status(403);
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   createKak,
   getKak,
+  updateKak,
 };

@@ -43,6 +43,14 @@ const createKak = async (researchId, kakData) => {
       rabItems: true,
     },
   });
+
+  // Update global status in Problem table
+  await prisma.problem.update({
+    where: { id: research.problemId },
+    data: { status: 'KAK_SUBMITTED' },
+  });
+
+  return kak;
 };
 
 const getKakByResearchId = async (researchId) => {
@@ -60,7 +68,59 @@ const getKakByResearchId = async (researchId) => {
   });
 };
 
+const updateKak = async (researchId, userId, kakData) => {
+  const research = await prisma.research.findUnique({
+    where: { id: researchId },
+    include: { problem: true },
+  });
+  if (!research) throw new Error('Usulan penelitian tidak ditemukan');
+  if (research.createdById !== userId) throw new Error('Tidak memiliki akses');
+
+  let kak = await prisma.kak.findUnique({ where: { researchId } });
+  if (!kak) throw new Error('KAK belum dibuat');
+
+  const { rabItems, ...kakFields } = kakData;
+
+  const updateData = { ...kakFields };
+
+  // If rabItems is provided, replace them
+  if (rabItems) {
+    const rabItemsData = rabItems.map((item) => ({
+      description: item.description,
+      volume: item.volume,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      total: item.volume * item.unitPrice,
+    }));
+
+    // Delete old
+    await prisma.rabItem.deleteMany({ where: { kakId: kak.id } });
+    
+    // Create new
+    updateData.rabItems = {
+      create: rabItemsData
+    };
+  }
+
+  kak = await prisma.kak.update({
+    where: { researchId },
+    data: updateData,
+    include: { rabItems: true }
+  });
+
+  // Jika status sebelumnya REVISION_REQUIRED, kembalikan ke KAK_SUBMITTED untuk di review ulang
+  if (research.problem.status === 'REVISION_REQUIRED') {
+    await prisma.problem.update({
+      where: { id: research.problemId },
+      data: { status: 'KAK_SUBMITTED' } 
+    });
+  }
+
+  return kak;
+};
+
 module.exports = {
   createKak,
   getKakByResearchId,
+  updateKak,
 };

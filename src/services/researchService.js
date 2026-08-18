@@ -15,7 +15,6 @@ const createResearch = async (data, userId) => {
     data: {
       ...data,
       createdById: userId, // Ini berfungsi ganda sebagai identitas OPD juga
-      status: 'SUBMITTED',
     },
     include: {
       problem: true // Langsung sertakan data masalahnya dalam response
@@ -71,8 +70,34 @@ const getResearchById = async (id, user) => {
   return research;
 };
 
+const updateResearch = async (id, userId, data) => {
+  const research = await prisma.research.findUnique({
+    where: { id },
+    include: { problem: true },
+  });
+
+  if (!research) throw new Error('Usulan penelitian tidak ditemukan');
+  if (research.createdById !== userId) throw new Error('Akses ditolak: Bukan pemilik usulan');
+
+  const updatedResearch = await prisma.research.update({
+    where: { id },
+    data,
+  });
+
+  // Jika status sebelumnya REVISION_REQUIRED, kembalikan ke RESEARCH_SUBMITTED (atau PROBLEM_SUBMITTED jika belum KAK)
+  if (research.problem.status === 'REVISION_REQUIRED') {
+    await prisma.problem.update({
+      where: { id: research.problemId },
+      data: { status: 'PROBLEM_SUBMITTED' },
+    });
+  }
+
+  return updatedResearch;
+};
+
 module.exports = {
   createResearch,
   getResearches,
   getResearchById,
+  updateResearch,
 };

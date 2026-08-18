@@ -13,6 +13,8 @@ datasource db {
 enum Role {
   OPD
   BRIDA
+  KEPALA_BRIDA
+  MITRA
 }
 
 model User {
@@ -21,17 +23,22 @@ model User {
   email     String    @unique
   password  String
   role      Role      @default(OPD)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  problems  Problem[]
-  researches Research[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  problems         Problem[] @relation("CreatedBy")
+  assignedProblems Problem[] @relation("AssignedMitra")
+  researches       Research[]
 }
 
 enum ProblemStatus {
-  DRAFT
-  SUBMITTED
-  VALID
+  PROBLEM_SUBMITTED
+  RESEARCH_APPROVED
+  KAK_SUBMITTED
   REVISION_REQUIRED
+  APPROVED
+  MITRA_ASSIGNED
+  ONGOING
+  FINISHED
   REJECTED
 }
 
@@ -53,13 +60,15 @@ model Problem {
   impact           String
   urgency          String
   attachments      String[]
-  status           ProblemStatus @default(SUBMITTED)
-  rejectionReason  String?
+  status           ProblemStatus @default(PROBLEM_SUBMITTED)
+  reviewNotes      String?
   createdById      String
-  createdBy        User          @relation(fields: [createdById], references: [id])
+  createdBy        User          @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedMitraId  String?
+  assignedMitra    User?         @relation("AssignedMitra", fields: [assignedMitraId], references: [id])
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  researches       Research[]
+  research         Research?
 }
 
 model MasterResearchType {
@@ -68,17 +77,12 @@ model MasterResearchType {
   researches Research[]
 }
 
-enum ResearchStatus {
-  DRAFT
-  SUBMITTED
-  APPROVED
-  REJECTED
-}
+
 
 model Research {
   id                      String             @id @default(uuid())
-  problemId               String
-  problem                 Problem            @relation(fields: [problemId], references: [id])
+  problemId               String             @unique
+  problem                 Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
   title                   String
   researchTypeId          String
   researchType            MasterResearchType @relation(fields: [researchTypeId], references: [id])
@@ -90,7 +94,6 @@ model Research {
   successIndicators       String
   estimatedBudget         Float
   estimatedDurationMonths Int
-  status                  ResearchStatus     @default(SUBMITTED)
   createdById             String
   createdBy               User               @relation(fields: [createdById], references: [id])
   createdAt               DateTime           @default(now())

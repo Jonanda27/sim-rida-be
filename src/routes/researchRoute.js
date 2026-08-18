@@ -1,9 +1,9 @@
 const express = require('express');
-const { create, getAll, getById } = require('../controllers/researchController');
+const { create, getAll, getById, update } = require('../controllers/researchController');
 const kakController = require('../controllers/kakController');
 const validate = require('../middlewares/validate');
-const { createResearchSchema } = require('../validations/researchValidation');
-const { createKakSchema } = require('../validations/kakValidation');
+const { createResearchSchema, updateResearchSchema } = require('../validations/researchValidation');
+const { createKakSchema, updateKakSchema } = require('../validations/kakValidation');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -19,6 +19,19 @@ router.post(
   authorize('OPD'),
   validate(createKakSchema),
   kakController.createKak
+);
+
+/**
+ * @route   PUT /api/v1/researches/:researchId/kak
+ * @desc    OPD mengedit draf KAK lengkap beserta tabel RAB
+ * @access  Private (OPD)
+ */
+router.put(
+  '/:researchId/kak',
+  protect,
+  authorize('OPD'),
+  validate(updateKakSchema),
+  kakController.updateKak
 );
 
 /**
@@ -45,8 +58,13 @@ router.route('/')
  * @route   GET /api/v1/researches/:id
  * @desc    Mendapatkan detail satu usulan perencanaan berdasarkan ID
  * @access  Private (OPD, BRIDA)
+ * 
+ * @route   PUT /api/v1/researches/:id
+ * @desc    Mengedit usulan perencanaan
+ * @access  Private (OPD)
  */
 router.route('/:id')
-  .get(protect, authorize('OPD', 'BRIDA'), getById);
+  .get(protect, authorize('OPD', 'BRIDA'), getById)
+  .put(protect, authorize('OPD'), validate(updateResearchSchema), update);
 
 module.exports = router;

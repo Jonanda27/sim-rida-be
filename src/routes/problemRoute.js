@@ -1,7 +1,7 @@
 const express = require('express');
-const { create, getAll, validateStatus, getById, update } = require('../controllers/problemController');
+const { create, getAll, getById, update, reviewProblem, assignMitra } = require('../controllers/problemController');
 const validate = require('../middlewares/validate');
-const { createProblemSchema, validateProblemSchema, updateProblemSchema } = require('../validations/problemValidation');
+const { createProblemSchema, updateProblemSchema } = require('../validations/problemValidation');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/uploadMiddleware');
 
@@ -21,8 +21,22 @@ router.route('/')
   .get(protect, authorize('OPD', 'BRIDA'), getAll);
 
 /**
+ * @route   PATCH /api/v1/problems/:id/review
+ * @desc    BRIDA memvalidasi atau menolak usulan masalah
+ * @access  Private (BRIDA)
+ */
+router.patch('/:id/review', protect, authorize('BRIDA'), reviewProblem);
+
+/**
+ * @route   PATCH /api/v1/problems/:id/assign-mitra
+ * @desc    BRIDA atau Kepala BRIDA menugaskan Mitra untuk mengerjakan riset yang sudah disetujui
+ * @access  Private (BRIDA, KEPALA_BRIDA)
+ */
+router.patch('/:id/assign-mitra', protect, authorize('BRIDA', 'KEPALA_BRIDA'), assignMitra);
+
+/**
  * @route   GET /api/v1/problems/:id
- * @desc    Mendapatkan detail satu masalah berdasarkan ID
+ * @desc    Mendapatkan detail draf masalah berdasarkan ID
  * @access  Private (OPD, BRIDA)
  * 
  * @route   PATCH /api/v1/problems/:id
@@ -32,13 +46,5 @@ router.route('/')
 router.route('/:id')
   .get(protect, authorize('OPD', 'BRIDA'), getById)
   .patch(protect, authorize('OPD'), upload.array('attachments', 5), validate(updateProblemSchema), update);
-
-/**
- * @route   PATCH /api/v1/problems/:id/validate
- * @desc    Validasi masalah oleh BRIDA (Ubah status menjadi Valid, Perlu Revisi, Ditolak)
- * @access  Private (BRIDA)
- */
-router.route('/:id/validate')
-  .patch(protect, authorize('BRIDA'), validate(validateProblemSchema), validateStatus);
 
 module.exports = router;

@@ -16,4 +16,22 @@ const createResearchSchema = z.object({
   }),
 });
 
-module.exports = { createResearchSchema };
+const updateResearchSchema = z.object({
+  body: z.object({
+    title: z.string().min(5, 'Judul minimal 5 karakter').optional(),
+    researchTypeId: z.string().uuid('ID Jenis Riset tidak valid').optional(),
+    objective: z.string().min(10, 'Tujuan minimal 10 karakter').optional(),
+    researchQuestions: z.string().min(10, 'Pertanyaan riset minimal 10 karakter').optional(),
+    scope: z.string().min(5, 'Ruang lingkup minimal 5 karakter').optional(),
+    expectedOutput: z.string().min(5, 'Output minimal 5 karakter').optional(),
+    expectedOutcome: z.string().min(5, 'Outcome minimal 5 karakter').optional(),
+    successIndicators: z.string().min(5, 'Indikator keberhasilan minimal 5 karakter').optional(),
+    estimatedBudget: z.number().min(0, 'Anggaran tidak boleh negatif').optional(),
+    estimatedDurationMonths: z.number().min(1, 'Durasi minimal 1 bulan').optional(),
+  }),
+});
+
+module.exports = {
+  createResearchSchema,
+  updateResearchSchema,
+};

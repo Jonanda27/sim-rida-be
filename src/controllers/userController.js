@@ -5,7 +5,19 @@ const prisma = require('../config/db');
 // @access  Public
 const getUsers = async (req, res, next) => {
   try {
-    const users = await prisma.user.findMany();
+    const { role } = req.query;
+    const where = role ? { role } : {};
+    
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      }
+    });
+    
     res.status(200).json({
       success: true,
       data: users,
