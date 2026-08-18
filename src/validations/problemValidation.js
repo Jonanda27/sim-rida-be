@@ -3,9 +3,9 @@ const { z } = require('zod');
 const createProblemSchema = z.object({
   body: z.object({
     title: z.string().min(5, 'Judul masalah minimal 5 karakter').max(150, 'Judul terlalu panjang'),
-    sector: z.string().min(1, 'Sektor wajib diisi'),
+    sectorId: z.string().uuid('ID Sektor harus berupa UUID yang valid'),
     description: z.string().min(20, 'Deskripsi masalah minimal 20 karakter'),
-    impactedArea: z.string().min(1, 'Wilayah terdampak wajib diisi'),
+    impactedAreaId: z.string().uuid('ID Wilayah Terdampak harus berupa UUID yang valid'),
   }),
 });
 

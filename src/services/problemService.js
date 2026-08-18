@@ -23,9 +23,12 @@ const getProblems = async (user) => {
     where,
     orderBy: { createdAt: 'desc' },
     include: {
+      sector: true,
+      impactedArea: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },
+      researches: true,
     },
   });
 };
@@ -50,9 +53,12 @@ const getProblemById = async (id, user) => {
   const problem = await prisma.problem.findUnique({
     where: { id },
     include: {
+      sector: true,
+      impactedArea: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },
+      researches: true,
     },
   });
 

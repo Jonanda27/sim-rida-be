@@ -6,12 +6,14 @@ const userRoute = require('./userRoute');
 const authRoute = require('./authRoute');
 const problemRoute = require('./problemRoute');
 const researchRoute = require('./researchRoute');
+const masterRoute = require('./masterRoute');
 
 // Define routes
 router.use('/users', userRoute);
 router.use('/auth', authRoute);
 router.use('/problems', problemRoute);
 router.use('/researches', researchRoute);
+router.use('/master', masterRoute);
 
 // Health check route
 router.get('/health', (req, res) => {

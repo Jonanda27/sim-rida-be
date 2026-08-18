@@ -35,12 +35,27 @@ enum ProblemStatus {
   REJECTED
 }
 
+model MasterSector {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  problems    Problem[]
+}
+
+model MasterArea {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  problems Problem[]
+}
+
 model Problem {
   id              String        @id @default(uuid())
   title           String
-  sector          String
+  sectorId        String
+  sector          MasterSector  @relation(fields: [sectorId], references: [id])
   description     String
-  impactedArea    String
+  impactedAreaId  String
+  impactedArea    MasterArea    @relation(fields: [impactedAreaId], references: [id])
   attachments     String[]
   status          ProblemStatus @default(SUBMITTED)
   rejectionReason String?
