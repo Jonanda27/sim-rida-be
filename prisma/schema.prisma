@@ -95,4 +95,34 @@ model Research {
   createdBy               User               @relation(fields: [createdById], references: [id])
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
+  kak                     Kak?
+}
+
+model Kak {
+  id                String    @id @default(uuid())
+  researchId        String    @unique
+  research          Research  @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  dasarPemikiran    String
+  maksudTujuan      String
+  ruangLingkup      String
+  metodologi        String
+  output            String
+  outcome           String
+  indikatorKinerja  String
+  jadwalPelaksanaan String
+  penutup           String
+  rabItems          RabItem[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model RabItem {
+  id          String @id @default(uuid())
+  kakId       String
+  kak         Kak    @relation(fields: [kakId], references: [id], onDelete: Cascade)
+  description String
+  volume      Int
+  unit        String
+  unitPrice   Float
+  total       Float
 }
