@@ -12,7 +12,14 @@ const getAllAreas = async () => {
   });
 };
 
+const getAllResearchTypes = async () => {
+  return await prisma.masterResearchType.findMany({
+    orderBy: { name: 'asc' },
+  });
+};
+
 module.exports = {
   getAllSectors,
   getAllAreas,
+  getAllResearchTypes,
 };

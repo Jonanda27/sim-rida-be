@@ -66,11 +66,10 @@ model Problem {
   researches      Research[]
 }
 
-enum ResearchType {
-  PENGEMBANGAN_SISTEM
-  KAJIAN_STUDI
-  EVALUASI_KEBIJAKAN
-  SURVEI
+model MasterResearchType {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  researches Research[]
 }
 
 enum ResearchStatus {
@@ -81,18 +80,19 @@ enum ResearchStatus {
 }
 
 model Research {
-  id                      String         @id @default(uuid())
+  id                      String             @id @default(uuid())
   problemId               String
-  problem                 Problem        @relation(fields: [problemId], references: [id])
+  problem                 Problem            @relation(fields: [problemId], references: [id])
   title                   String
-  researchType            ResearchType
+  researchTypeId          String
+  researchType            MasterResearchType @relation(fields: [researchTypeId], references: [id])
   objective               String
   expectedSolution        String
   estimatedBudget         Float
   estimatedDurationMonths Int
-  status                  ResearchStatus @default(SUBMITTED)
+  status                  ResearchStatus     @default(SUBMITTED)
   createdById             String
-  createdBy               User           @relation(fields: [createdById], references: [id])
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
+  createdBy               User               @relation(fields: [createdById], references: [id])
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 }

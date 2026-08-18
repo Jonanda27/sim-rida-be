@@ -39,6 +39,7 @@ const getResearches = async (user) => {
     orderBy: { createdAt: 'desc' },
     include: {
       problem: true,
+      researchType: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },
@@ -51,6 +52,7 @@ const getResearchById = async (id, user) => {
     where: { id },
     include: {
       problem: true,
+      researchType: true,
       createdBy: {
         select: { id: true, name: true, email: true },
       },

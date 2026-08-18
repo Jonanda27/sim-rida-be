@@ -24,7 +24,20 @@ const getAreas = async (req, res, next) => {
   }
 };
 
+const getResearchTypes = async (req, res, next) => {
+  try {
+    const result = await masterService.getAllResearchTypes();
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSectors,
   getAreas,
+  getResearchTypes,
 };
