@@ -61,36 +61,6 @@ const reviewProblem = async (req, res, next) => {
   }
 };
 
-// @desc    Assign a Mitra to a Problem
-// @route   PATCH /api/v1/problems/:id/assign-mitra
-// @access  Private (BRIDA/KEPALA_BRIDA)
-const assignMitra = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { mitraId } = req.body;
-    
-    if (!mitraId) {
-      return res.status(400).json({ success: false, message: 'mitraId diperlukan' });
-    }
-
-    const result = await problemService.assignMitra(id, mitraId);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Mitra berhasil ditugaskan',
-      data: result,
-    });
-  } catch (error) {
-    if (error.message === 'Masalah tidak ditemukan') {
-      res.status(404);
-    }
-    if (error.message.includes('Mitra tidak valid') || error.message.includes('belum disetujui')) {
-      res.status(400);
-    }
-    next(error);
-  }
-};
-
 // @desc    Get single problem
 // @route   GET /api/v1/problems/:id
 // @access  Private (OPD & BRIDA)
@@ -134,7 +104,7 @@ module.exports = {
   create,
   getAll,
   reviewProblem,
-  assignMitra,
+
   getById,
   update,
 };

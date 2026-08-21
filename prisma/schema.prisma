@@ -14,7 +14,6 @@ enum Role {
   OPD
   BRIDA
   KEPALA_BRIDA
-  MITRA
 }
 
 model User {
@@ -26,7 +25,6 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   problems         Problem[] @relation("CreatedBy")
-  assignedProblems Problem[] @relation("AssignedMitra")
   researches       Research[]
 }
 
@@ -36,9 +34,16 @@ enum ProblemStatus {
   KAK_SUBMITTED
   REVISION_REQUIRED
   APPROVED
-  MITRA_ASSIGNED
-  ONGOING
-  FINISHED
+  EKATALOG_SENT
+  OPD_IMPLEMENTING
+  OPD_REPORTED
+  POLICY_BRIEF_DRAFT
+  POLICY_BRIEF_REVIEW
+  RECOMMENDATION_PENDING
+  RECOMMENDATION_APPROVED
+  FOLLOW_UP_PENDING
+  FOLLOW_UP_IN_PROGRESS
+  FOLLOW_UP_COMPLETED
   REJECTED
 }
 
@@ -64,8 +69,6 @@ model Problem {
   reviewNotes      String?
   createdById      String
   createdBy        User          @relation("CreatedBy", fields: [createdById], references: [id])
-  assignedMitraId  String?
-  assignedMitra    User?         @relation("AssignedMitra", fields: [assignedMitraId], references: [id])
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   research         Research?

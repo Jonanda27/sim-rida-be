@@ -15,9 +15,8 @@ const getProblems = async (user) => {
   
   if (user.role === 'OPD') {
     where.createdById = user.id;
-  } else if (user.role === 'MITRA') {
-    where.assignedMitraId = user.id;
   }
+
   // BRIDA can see all problems, so where remains {}
 
   return await prisma.problem.findMany({
@@ -49,35 +48,6 @@ const reviewProblem = async (id, status, reviewNotes) => {
   });
 };
 
-const assignMitra = async (id, mitraId) => {
-  const problem = await prisma.problem.findUnique({ where: { id } });
-  
-  if (!problem) {
-    throw Object.assign(new Error('Masalah tidak ditemukan'), { statusCode: 404 });
-  }
-
-  if (problem.status !== 'APPROVED') {
-    throw Object.assign(new Error('Proposal belum disetujui, tidak bisa menugaskan mitra'), { statusCode: 400 });
-  }
-
-  // Cek apakah mitra valid
-  const mitra = await prisma.user.findFirst({
-    where: { id: mitraId, role: 'MITRA' }
-  });
-
-  if (!mitra) {
-    throw Object.assign(new Error('Mitra tidak valid atau tidak ditemukan'), { statusCode: 400 });
-  }
-
-  return await prisma.problem.update({
-    where: { id },
-    data: {
-      assignedMitraId: mitraId,
-      status: 'MITRA_ASSIGNED'
-    },
-  });
-};
-
 const getProblemById = async (id, user) => {
   const problem = await prisma.problem.findUnique({
     where: { id },
@@ -99,10 +69,6 @@ const getProblemById = async (id, user) => {
     throw Object.assign(new Error('Not authorized to access this problem'), { statusCode: 403 });
   }
 
-  // Jika MITRA, pastikan masalah ini ditugaskan padanya
-  if (user.role === 'MITRA' && problem.assignedMitraId !== user.id) {
-    throw Object.assign(new Error('Not authorized to access this problem'), { statusCode: 403 });
-  }
 
   return problem;
 };
@@ -140,7 +106,8 @@ module.exports = {
   createProblem,
   getProblems,
   reviewProblem,
-  assignMitra,
+
   getProblemById,
   updateProblem,
 };
+

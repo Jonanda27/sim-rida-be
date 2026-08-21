@@ -1,5 +1,5 @@
 const express = require('express');
-const { create, getAll, getById, update, reviewProblem, assignMitra } = require('../controllers/problemController');
+const { create, getAll, getById, update, reviewProblem } = require('../controllers/problemController');
 const validate = require('../middlewares/validate');
 const { createProblemSchema, updateProblemSchema } = require('../validations/problemValidation');
 const { protect, authorize } = require('../middlewares/authMiddleware');
@@ -26,13 +26,6 @@ router.route('/')
  * @access  Private (BRIDA)
  */
 router.patch('/:id/review', protect, authorize('BRIDA'), reviewProblem);
-
-/**
- * @route   PATCH /api/v1/problems/:id/assign-mitra
- * @desc    BRIDA atau Kepala BRIDA menugaskan Mitra untuk mengerjakan riset yang sudah disetujui
- * @access  Private (BRIDA, KEPALA_BRIDA)
- */
-router.patch('/:id/assign-mitra', protect, authorize('BRIDA', 'KEPALA_BRIDA'), assignMitra);
 
 /**
  * @route   GET /api/v1/problems/:id
