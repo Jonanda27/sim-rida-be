@@ -72,6 +72,10 @@ model Problem {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   research         Research?
+  report           Report?
+  policyBrief      PolicyBrief?
+  recommendation   Recommendation?
+  followUp         FollowUp?
 }
 
 model MasterResearchType {
@@ -131,4 +135,48 @@ model RabItem {
   unit        String
   unitPrice   Float
   total       Float
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  problemId   String   @unique
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  title       String
+  summary     String
+  attachments String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PolicyBrief {
+  id          String   @id @default(uuid())
+  problemId   String   @unique
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  attachments String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Recommendation {
+  id          String   @id @default(uuid())
+  problemId   String   @unique
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  decision    String
+  notes       String?
+  attachments String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FollowUp {
+  id          String   @id @default(uuid())
+  problemId   String   @unique
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  actionPlan  String
+  progress    String
+  attachments String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
