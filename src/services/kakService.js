@@ -23,7 +23,7 @@ const createKak = async (researchId, kakData) => {
   }));
 
   // Create KAK and RAB Items using Prisma nested writes
-  return await prisma.kak.create({
+  const kak = await prisma.kak.create({
     data: {
       researchId,
       dasarPemikiran: kakData.dasarPemikiran,

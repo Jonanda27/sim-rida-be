@@ -14,7 +14,7 @@ enum Role {
   OPD
   BRIDA
   KEPALA_BRIDA
-  MITRA
+  // MITRA role dihapus — digantikan dengan mekanisme E-Katalog
 }
 
 model User {
@@ -23,23 +23,36 @@ model User {
   email     String    @unique
   password  String
   role      Role      @default(OPD)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  problems         Problem[] @relation("CreatedBy")
-  assignedProblems Problem[] @relation("AssignedMitra")
-  researches       Research[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  problems  Problem[] @relation("CreatedBy")
 }
 
 enum ProblemStatus {
+  DRAFT
+  SUBMITTED
   PROBLEM_SUBMITTED
   RESEARCH_APPROVED
   KAK_SUBMITTED
+  VALID
+  ADMINISTRATIVE_REVIEW
   REVISION_REQUIRED
+  SUBSTANTIVE_REVIEW
+  SCORING
+  SELECTION_RECOMMENDED
   APPROVED
-  MITRA_ASSIGNED
-  ONGOING
-  FINISHED
   REJECTED
+  RESERVE
+  EKATALOG_SENT
+  OPD_IMPLEMENTING
+  OPD_REPORTED
+  POLICY_BRIEF_DRAFT
+  POLICY_BRIEF_REVIEW
+  RECOMMENDATION_PENDING
+  RECOMMENDATION_APPROVED
+  FOLLOW_UP_PENDING
+  FOLLOW_UP_IN_PROGRESS
+  FOLLOW_UP_COMPLETED
 }
 
 model MasterSector {
@@ -61,14 +74,26 @@ model Problem {
   urgency          String
   attachments      String[]
   status           ProblemStatus @default(PROBLEM_SUBMITTED)
+  progress         Int           @default(0)
   reviewNotes      String?
   createdById      String
   createdBy        User          @relation("CreatedBy", fields: [createdById], references: [id])
-  assignedMitraId  String?
-  assignedMitra    User?         @relation("AssignedMitra", fields: [assignedMitraId], references: [id])
+  // E-Katalog fields (menggantikan assignedMitra)
+  eKatalogUrl      String?
+  eKatalogDesc     String?
+  eKatalogSentAt   DateTime?
+  eKatalogDeadline DateTime?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   research         Research?
+  opdReports       OpdReport[]
+  opdMonitoringLogs OpdMonitoringLog[]
+  timeline          Json?
+  verificationChecklist Json?
+  substantiveReview     Json?
+  policyBrief           Json?
+  recommendation        Json?
+  followUp              Json?
 }
 
 model MasterResearchType {
@@ -76,8 +101,6 @@ model MasterResearchType {
   name       String     @unique
   researches Research[]
 }
-
-
 
 model Research {
   id                      String             @id @default(uuid())
@@ -95,7 +118,6 @@ model Research {
   estimatedBudget         Float
   estimatedDurationMonths Int
   createdById             String
-  createdBy               User               @relation(fields: [createdById], references: [id])
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   kak                     Kak?
@@ -128,4 +150,31 @@ model RabItem {
   unit        String
   unitPrice   Float
   total       Float
+}
+
+// --- Model baru: Laporan Monitoring Berkala OPD ---
+model OpdMonitoringLog {
+  id          String   @id @default(uuid())
+  problemId   String
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  date        DateTime @default(now())
+  progress    Int      // 0–100 persen
+  description String
+  evidenceFile String?
+  createdAt   DateTime @default(now())
+}
+
+// --- Model baru: Laporan Akhir OPD ---
+model OpdReport {
+  id              String   @id @default(uuid())
+  problemId       String
+  problem         Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  title           String
+  findings        String
+  obstacles       String
+  opdRecommendation String
+  attachments     String[]
+  submittedAt     DateTime @default(now())
+  reviewNotes     String?
+  isApproved      Boolean  @default(false)
 }

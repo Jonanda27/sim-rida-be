@@ -52,7 +52,7 @@ router.get('/:researchId/kak', protect, kakController.getKak);
  */
 router.route('/')
   .post(protect, authorize('OPD'), validate(createResearchSchema), create)
-  .get(protect, authorize('OPD', 'BRIDA'), getAll);
+  .get(protect, authorize('OPD', 'BRIDA', 'KEPALA_BRIDA'), getAll);
 
 /**
  * @route   GET /api/v1/researches/:id
@@ -64,7 +64,7 @@ router.route('/')
  * @access  Private (OPD)
  */
 router.route('/:id')
-  .get(protect, authorize('OPD', 'BRIDA'), getById)
+  .get(protect, authorize('OPD', 'BRIDA', 'KEPALA_BRIDA'), getById)
   .put(protect, authorize('OPD'), validate(updateResearchSchema), update);
 
 module.exports = router;

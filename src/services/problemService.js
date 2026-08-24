@@ -28,7 +28,19 @@ const getProblems = async (user) => {
       createdBy: {
         select: { id: true, name: true, email: true },
       },
-      research: true,
+      research: {
+        include: {
+          kak: {
+            include: {
+              rabItems: true,
+            },
+          },
+        },
+      },
+      opdReports: true,
+      opdMonitoringLogs: {
+        orderBy: { date: 'asc' },
+      },
     },
   });
 };
@@ -86,7 +98,19 @@ const getProblemById = async (id, user) => {
       createdBy: {
         select: { id: true, name: true, email: true },
       },
-      research: true,
+      research: {
+        include: {
+          kak: {
+            include: {
+              rabItems: true,
+            },
+          },
+        },
+      },
+      opdReports: true,
+      opdMonitoringLogs: {
+        orderBy: { date: 'asc' },
+      },
     },
   });
 
@@ -136,6 +160,83 @@ const updateProblem = async (id, data, user) => {
   });
 };
 
+const updateWorkflow = async (id, data) => {
+  const problem = await prisma.problem.findUnique({ where: { id } });
+  if (!problem) throw Object.assign(new Error('Masalah tidak ditemukan'), { statusCode: 404 });
+  
+  const updateData = {};
+  
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.progress !== undefined) updateData.progress = Number(data.progress);
+  if (data.eKatalogUrl !== undefined) updateData.eKatalogUrl = data.eKatalogUrl;
+  if (data.eKatalogDesc !== undefined) updateData.eKatalogDesc = data.eKatalogDesc;
+  if (data.eKatalogSentAt !== undefined) updateData.eKatalogSentAt = data.eKatalogSentAt ? new Date(data.eKatalogSentAt) : null;
+  if (data.eKatalogDeadline !== undefined) updateData.eKatalogDeadline = data.eKatalogDeadline ? new Date(data.eKatalogDeadline) : null;
+  if (data.timeline !== undefined) updateData.timeline = data.timeline;
+  if (data.verificationChecklist !== undefined) updateData.verificationChecklist = data.verificationChecklist;
+  if (data.substantiveReview !== undefined) updateData.substantiveReview = data.substantiveReview;
+  if (data.policyBrief !== undefined) updateData.policyBrief = data.policyBrief;
+  if (data.recommendation !== undefined) updateData.recommendation = data.recommendation;
+  if (data.followUp !== undefined) updateData.followUp = data.followUp;
+
+  return await prisma.problem.update({
+    where: { id },
+    data: updateData,
+  });
+};
+
+const createMonitoringLog = async (problemId, logData) => {
+  const problem = await prisma.problem.findUnique({ where: { id: problemId } });
+  if (!problem) throw Object.assign(new Error('Masalah tidak ditemukan'), { statusCode: 404 });
+
+  const newLog = await prisma.opdMonitoringLog.create({
+    data: {
+      problemId,
+      progress: Number(logData.progress),
+      description: logData.description,
+      evidenceFile: logData.evidenceFile || null,
+    },
+  });
+
+  const newProgress = Math.max(problem.progress || 0, Math.round(Number(logData.progress) * 0.7));
+
+  await prisma.problem.update({
+    where: { id: problemId },
+    data: {
+      status: 'OPD_IMPLEMENTING',
+      progress: newProgress,
+    },
+  });
+
+  return newLog;
+};
+
+const createOpdReport = async (problemId, reportData) => {
+  const problem = await prisma.problem.findUnique({ where: { id: problemId } });
+  if (!problem) throw Object.assign(new Error('Masalah tidak ditemukan'), { statusCode: 404 });
+
+  const newReport = await prisma.opdReport.create({
+    data: {
+      problemId,
+      title: reportData.title,
+      findings: reportData.findings,
+      obstacles: reportData.obstacles,
+      opdRecommendation: reportData.opdRecommendation,
+      attachments: reportData.attachments || [],
+    },
+  });
+
+  await prisma.problem.update({
+    where: { id: problemId },
+    data: {
+      status: 'OPD_REPORTED',
+      progress: 85,
+    },
+  });
+
+  return newReport;
+};
+
 module.exports = {
   createProblem,
   getProblems,
@@ -143,4 +244,7 @@ module.exports = {
   assignMitra,
   getProblemById,
   updateProblem,
+  updateWorkflow,
+  createMonitoringLog,
+  createOpdReport,
 };

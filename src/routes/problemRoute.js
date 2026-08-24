@@ -1,5 +1,5 @@
 const express = require('express');
-const { create, getAll, getById, update, reviewProblem, assignMitra } = require('../controllers/problemController');
+const { create, getAll, getById, update, reviewProblem, assignMitra, updateWorkflow, createMonitoringLog, createOpdReport } = require('../controllers/problemController');
 const validate = require('../middlewares/validate');
 const { createProblemSchema, updateProblemSchema } = require('../validations/problemValidation');
 const { protect, authorize } = require('../middlewares/authMiddleware');
@@ -18,7 +18,7 @@ const router = express.Router();
  */
 router.route('/')
   .post(protect, authorize('OPD'), upload.array('attachments', 5), validate(createProblemSchema), create)
-  .get(protect, authorize('OPD', 'BRIDA'), getAll);
+  .get(protect, authorize('OPD', 'BRIDA', 'KEPALA_BRIDA'), getAll);
 
 /**
  * @route   PATCH /api/v1/problems/:id/review
@@ -33,6 +33,9 @@ router.patch('/:id/review', protect, authorize('BRIDA'), reviewProblem);
  * @access  Private (BRIDA, KEPALA_BRIDA)
  */
 router.patch('/:id/assign-mitra', protect, authorize('BRIDA', 'KEPALA_BRIDA'), assignMitra);
+router.patch('/:id/workflow', protect, authorize('OPD', 'BRIDA', 'KEPALA_BRIDA'), updateWorkflow);
+router.post('/:id/monitoring-logs', protect, authorize('OPD'), createMonitoringLog);
+router.post('/:id/reports', protect, authorize('OPD'), createOpdReport);
 
 /**
  * @route   GET /api/v1/problems/:id
@@ -44,7 +47,7 @@ router.patch('/:id/assign-mitra', protect, authorize('BRIDA', 'KEPALA_BRIDA'), a
  * @access  Private (OPD)
  */
 router.route('/:id')
-  .get(protect, authorize('OPD', 'BRIDA'), getById)
+  .get(protect, authorize('OPD', 'BRIDA', 'KEPALA_BRIDA'), getById)
   .patch(protect, authorize('OPD'), upload.array('attachments', 5), validate(updateProblemSchema), update);
 
 module.exports = router;

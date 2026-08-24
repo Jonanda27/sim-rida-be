@@ -9,11 +9,12 @@ const validate = (schema) => (req, res, next) => {
     });
     next();
   } catch (error) {
-    if (error instanceof ZodError) {
-      const formattedErrors = error.errors.map((err) => ({
-        field: err.path.join('.'),
-        message: err.message,
-      }));
+    if (error instanceof ZodError || error.issues) {
+      const issues = error.errors || error.issues || [];
+      const formattedErrors = Array.isArray(issues) ? issues.map((err) => ({
+        field: err.path ? err.path.join('.') : '',
+        message: err.message || String(err),
+      })) : [];
       
       return res.status(400).json({
         success: false,

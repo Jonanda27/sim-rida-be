@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const { seedUsers } = require('./seeders/userSeeder');
 const { seedSectors } = require('./seeders/sectorSeeder');
 const { seedResearchTypes } = require('./seeders/researchTypeSeeder');
+const { seedProposals } = require('./seeders/proposalSeeder');
 
 const prisma = new PrismaClient();
 
@@ -11,6 +12,7 @@ async function main() {
   await seedUsers(prisma);
   await seedSectors(prisma);
   await seedResearchTypes(prisma);
+  await seedProposals(prisma);
 
   console.log(`\nSeeding finished successfully.`);
 }

@@ -42,6 +42,11 @@ const getResearches = async (user) => {
       createdBy: {
         select: { id: true, name: true, email: true },
       },
+      kak: {
+        include: {
+          rabItems: true,
+        },
+      },
     },
   });
 };
@@ -54,6 +59,11 @@ const getResearchById = async (id, user) => {
       researchType: true,
       createdBy: {
         select: { id: true, name: true, email: true },
+      },
+      kak: {
+        include: {
+          rabItems: true,
+        },
       },
     },
   });

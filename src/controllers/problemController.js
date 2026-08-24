@@ -130,6 +130,45 @@ const update = async (req, res, next) => {
   }
 };
 
+const updateWorkflow = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await problemService.updateWorkflow(id, req.body);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createMonitoringLog = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await problemService.createMonitoringLog(id, req.body);
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createOpdReport = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await problemService.createOpdReport(id, req.body);
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   create,
   getAll,
@@ -137,4 +176,7 @@ module.exports = {
   assignMitra,
   getById,
   update,
+  updateWorkflow,
+  createMonitoringLog,
+  createOpdReport,
 };
