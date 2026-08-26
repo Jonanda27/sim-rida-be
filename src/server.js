@@ -7,6 +7,7 @@ const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT} in ${env.NODE_ENV} mode.`);
 });
 
+// Trigger nodemon reload for prisma client update
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.log(`Error: ${err.message}`);

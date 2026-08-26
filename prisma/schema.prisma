@@ -94,6 +94,8 @@ model Problem {
   policyBrief           Json?
   recommendation        Json?
   followUp              Json?
+  issues                Json?
+  risks                 Json?
 }
 
 model MasterResearchType {

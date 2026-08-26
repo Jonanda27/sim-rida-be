@@ -144,6 +144,8 @@ const updateWorkflow = async (id, data) => {
   if (data.policyBrief !== undefined) updateData.policyBrief = data.policyBrief;
   if (data.recommendation !== undefined) updateData.recommendation = data.recommendation;
   if (data.followUp !== undefined) updateData.followUp = data.followUp;
+  if (data.issues !== undefined) updateData.issues = data.issues;
+  if (data.risks !== undefined) updateData.risks = data.risks;
 
   return await prisma.problem.update({
     where: { id },
