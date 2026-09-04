@@ -11,21 +11,63 @@ datasource db {
 }
 
 enum Role {
-  OPD
+  ADMIN_BRIDA
   BRIDA
   KEPALA_BRIDA
-  // MITRA role dihapus — digantikan dengan mekanisme E-Katalog
+  OPD
 }
 
 model User {
-  id        String    @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  email     String    @unique
+  email     String     @unique
   password  String
-  role      Role      @default(OPD)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  problems  Problem[] @relation("CreatedBy")
+  role      Role       @default(OPD)
+  isActive  Boolean    @default(true)
+  opdId     String?
+  opd       OPD?       @relation(fields: [opdId], references: [id], onDelete: SetNull)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  problems  Problem[]  @relation("CreatedBy")
+  auditLogs AuditLog[]
+  createdExternalSources          ExternalSource[]          @relation("ExternalSourceCreator")
+  uploadedSourceVersions          ExternalSourceVersion[]   @relation("SourceVersionUploader")
+  createdProblemIdentifications   ProblemIdentification[]   @relation("ProblemIdentificationCreator")
+  reviewedProblemIdentifications  ProblemIdentification[]   @relation("ProblemIdentificationReviewer")
+  createdProposals               ResearchProposal[]        @relation("ProposalCreator")
+  submittedProposals             ResearchProposal[]        @relation("ProposalSubmitter")
+  reviewedProposals              ResearchProposal[]        @relation("ProposalReviewer")
+  createdSelections              ResearchSelection[]       @relation("SelectionCreator")
+  finalizedSelections            ResearchSelection[]       @relation("SelectionFinalizer")
+  createdKaks                    ResearchKak[]             @relation("KakCreator")
+  submittedKaks                  ResearchKak[]             @relation("KakSubmitter")
+  finalizedKaks                  ResearchKak[]             @relation("KakFinalizer")
+  createdRabs                    ResearchRab[]             @relation("RabCreator")
+  submittedRabs                  ResearchRab[]             @relation("RabSubmitter")
+  finalizedRabs                  ResearchRab[]             @relation("RabFinalizer")
+  createdPartners                ResearchPartner[]         @relation("PartnerCreator")
+  createdPartnerSelections       ResearchPartnerSelection[] @relation("PartnerSelectionCreator")
+  submittedPartnerSelections     ResearchPartnerSelection[] @relation("PartnerSelectionSubmitter")
+  finalizedPartnerSelections     ResearchPartnerSelection[] @relation("PartnerSelectionFinalizer")
+  uploadedPartnerDocuments       ResearchPartnerDocument[]  @relation("PartnerDocumentUploader")
+  responsibleImplementations     ResearchImplementation[]   @relation("ImplementationResponsibleUser")
+  createdImplementations         ResearchImplementation[]   @relation("ImplementationCreator")
+  createdProgressUpdates         ResearchProgressUpdate[]   @relation("ProgressUpdateCreator")
+  createdActivities              ResearchActivity[]         @relation("ActivityCreator")
+  uploadedImplementationDocuments ResearchImplementationDocument[] @relation("ImplementationDocumentUploader")
+  createdReports                  ResearchReport[]                  @relation("ReportCreator")
+  updatedReports                  ResearchReport[]                  @relation("ReportUpdater")
+  uploadedReportDocuments         ResearchReportDocument[]          @relation("ReportDocumentUploader")
+  reviewedReports                 ResearchReportReview[]            @relation("ReportReviewer")
+  createdPolicyBriefs             PolicyBrief[]                     @relation("PolicyBriefCreator")
+  updatedPolicyBriefs             PolicyBrief[]                     @relation("PolicyBriefUpdater")
+  uploadedPolicyBriefDocuments    PolicyBriefDocument[]             @relation("PolicyBriefDocumentUploader")
+  reviewedPolicyBriefs            PolicyBriefReview[]               @relation("PolicyBriefReviewer")
+  createdRecommendations          ResearchRecommendation[]          @relation("RecommendationCreator")
+  updatedRecommendations          ResearchRecommendation[]          @relation("RecommendationUpdater")
+  approvedRecommendations         ResearchRecommendation[]          @relation("RecommendationApprover")
+  uploadedRecommendationDocuments RecommendationDocument[]          @relation("RecommendationDocumentUploader")
+  reviewedRecommendations         RecommendationReview[]            @relation("RecommendationReviewer")
 }
 
 enum ProblemStatus {
@@ -122,36 +164,6 @@ model Research {
   createdById             String
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
-  kak                     Kak?
-}
-
-model Kak {
-  id                String    @id @default(uuid())
-  researchId        String    @unique
-  research          Research  @relation(fields: [researchId], references: [id], onDelete: Cascade)
-  dasarPemikiran    String
-  maksudTujuan      String
-  ruangLingkup      String
-  metodologi        String
-  output            String
-  outcome           String
-  indikatorKinerja  String
-  jadwalPelaksanaan String
-  penutup           String
-  rabItems          RabItem[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-}
-
-model RabItem {
-  id          String @id @default(uuid())
-  kakId       String
-  kak         Kak    @relation(fields: [kakId], references: [id], onDelete: Cascade)
-  description String
-  volume      Int
-  unit        String
-  unitPrice   Float
-  total       Float
 }
 
 // --- Model baru: Laporan Monitoring Berkala OPD ---
@@ -180,3 +192,1052 @@ model OpdReport {
   reviewNotes     String?
   isApproved      Boolean  @default(false)
 }
+
+model OPD {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  shortName   String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  problemIdentificationOpds ProblemIdentificationOpd[]
+  researchProposalOpds      ResearchProposalOpd[]
+  recommendations           ResearchRecommendation[] @relation("TargetOpdRecommendations")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// FASE 2: External Knowledge Sources & AI
+// ==========================================
+
+enum SourceType {
+  PLANNING_DOCUMENT
+  POLICY_DOCUMENT
+  REGULATION
+  STATISTICAL_DATA
+  RESEARCH_REPORT
+  PUBLIC_DATA
+  GOVERNMENT_REPORT
+  OTHER
+}
+
+enum SourceStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ExtractionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ProblemIdentificationStatus {
+  DRAFT
+  AI_GENERATED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model ExternalSource {
+  id               String                  @id @default(uuid())
+  code             String                  @unique
+  title            String
+  description      String?
+  sourceType       SourceType              @default(PLANNING_DOCUMENT)
+  institution      String?
+  status           SourceStatus            @default(ACTIVE)
+  currentVersionId String?
+  currentVersion   ExternalSourceVersion?  @relation("CurrentSourceVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdBy        User                    @relation("ExternalSourceCreator", fields: [createdById], references: [id])
+  versions         ExternalSourceVersion[] @relation("SourceVersions")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([status])
+  @@index([sourceType])
+}
+
+model ExternalSourceVersion {
+  id                     String                  @id @default(uuid())
+  externalSourceId       String
+  externalSource         ExternalSource          @relation("SourceVersions", fields: [externalSourceId], references: [id], onDelete: Cascade)
+  versionNumber          Int
+  effectiveDate          DateTime?
+  description            String?
+  uploadedById           String
+  uploadedBy             User                    @relation("SourceVersionUploader", fields: [uploadedById], references: [id])
+  document               ExternalSourceDocument?
+  problemIdentifications ProblemIdentification[]
+  currentForSources      ExternalSource[]        @relation("CurrentSourceVersion")
+  createdAt              DateTime                @default(now())
+
+  @@unique([externalSourceId, versionNumber])
+  @@index([externalSourceId])
+  @@index([versionNumber])
+}
+
+model ExternalSourceDocument {
+  id               String                @id @default(uuid())
+  sourceVersionId  String                @unique
+  sourceVersion    ExternalSourceVersion @relation(fields: [sourceVersionId], references: [id], onDelete: Cascade)
+  fileName         String
+  originalName     String
+  filePath         String
+  mimeType         String
+  fileSize         Int
+  checksum         String?
+  extractedText    String?               @db.Text
+  extractionStatus ExtractionStatus      @default(PENDING)
+  extractionError  String?
+  pageCount        Int?
+  createdAt        DateTime              @default(now())
+}
+
+model ProblemIdentification {
+  id              String                        @id @default(uuid())
+  code            String                        @unique
+  title           String
+  description     String
+  status          ProblemIdentificationStatus   @default(AI_GENERATED)
+  sourceVersionId String
+  sourceVersion   ExternalSourceVersion         @relation(fields: [sourceVersionId], references: [id])
+  createdById     String
+  createdBy       User                          @relation("ProblemIdentificationCreator", fields: [createdById], references: [id])
+  reviewedById    String?
+  reviewedBy      User?                         @relation("ProblemIdentificationReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNote      String?
+  aiMetadata      Json?
+  findings        ProblemIdentificationFinding[]
+  relatedOpds     ProblemIdentificationOpd[]
+  researchProposalProblems ResearchProposalProblem[]
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  @@index([status])
+  @@index([sourceVersionId])
+  @@index([createdAt])
+}
+
+model ProblemIdentificationFinding {
+  id                    String                @id @default(uuid())
+  problemIdentificationId String
+  problemIdentification ProblemIdentification @relation(fields: [problemIdentificationId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String
+  evidence              String?
+  confidence            Float?
+  sourceReference       String?
+  createdAt             DateTime              @default(now())
+}
+
+model ProblemIdentificationOpd {
+  id                    String                @id @default(uuid())
+  problemIdentificationId String
+  problemIdentification ProblemIdentification @relation(fields: [problemIdentificationId], references: [id], onDelete: Cascade)
+  opdId                 String
+  opd                   OPD                   @relation(fields: [opdId], references: [id])
+  relevanceScore        Float?
+  reason                String?
+
+  @@unique([problemIdentificationId, opdId])
+  @@index([opdId])
+}
+
+// ==========================================
+// FASE 3: Research Proposal / Usulan Penelitian
+// ==========================================
+
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  APPROVED_FOR_SELECTION
+  CANCELLED
+  SELECTED
+  NOT_SELECTED
+  READY_FOR_PARTNER
+  MITRA_SELECTED
+  READY_FOR_IMPLEMENTATION
+}
+
+enum ProposalPriority {
+  LOW
+  MEDIUM
+  HIGH
+  STRATEGIC
+}
+
+model ResearchProposal {
+  id                String                     @id @default(uuid())
+  code              String                     @unique
+  title             String
+  background        String?                    @db.Text
+  problemStatement  String?                    @db.Text
+  researchQuestion  String?                    @db.Text
+  objective         String?                    @db.Text
+  scope             String?                    @db.Text
+  expectedOutput    String?                    @db.Text
+  expectedOutcome   String?                    @db.Text
+  methodology       String?                    @db.Text
+  priority          ProposalPriority           @default(MEDIUM)
+  status            ProposalStatus             @default(DRAFT)
+  reviewNote        String?                    @db.Text
+  cancelReason      String?                    @db.Text
+  createdById       String
+  createdBy         User                       @relation("ProposalCreator", fields: [createdById], references: [id])
+  submittedById     String?
+  submittedBy       User?                      @relation("ProposalSubmitter", fields: [submittedById], references: [id])
+  submittedAt       DateTime?
+  reviewedById      String?
+  reviewedBy        User?                      @relation("ProposalReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  problems          ResearchProposalProblem[]
+  relatedOpds       ResearchProposalOpd[]
+  selection         ResearchSelection?
+  kak               ResearchKak?
+  partnerSelection  ResearchPartnerSelection?
+  implementation    ResearchImplementation?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model ResearchProposalProblem {
+  id                      String                @id @default(uuid())
+  researchProposalId      String
+  researchProposal        ResearchProposal      @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  problemIdentificationId String
+  problemIdentification  ProblemIdentification @relation(fields: [problemIdentificationId], references: [id], onDelete: Cascade)
+  isPrimary               Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+
+  @@unique([researchProposalId, problemIdentificationId])
+  @@index([problemIdentificationId])
+}
+
+model ResearchProposalOpd {
+  id                 String           @id @default(uuid())
+  researchProposalId String
+  researchProposal   ResearchProposal @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  opdId              String
+  opd                OPD              @relation(fields: [opdId], references: [id])
+  isPrimary          Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+
+  @@unique([researchProposalId, opdId])
+  @@index([opdId])
+}
+
+// ==========================================
+// FASE 4: Selection / Seleksi Usulan Penelitian
+// ==========================================
+
+enum SelectionStatus {
+  DRAFT
+  IN_ASSESSMENT
+  FINALIZED
+  CANCELLED
+}
+
+enum SelectionResult {
+  SELECTED
+  NOT_SELECTED
+}
+
+model ResearchSelection {
+  id                 String                   @id @default(uuid())
+  code               String                   @unique
+  researchProposalId String                   @unique
+  researchProposal   ResearchProposal         @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  status             SelectionStatus          @default(DRAFT)
+  totalScore         Float?
+  result             SelectionResult?
+  selectionNote      String?                  @db.Text
+  cancelReason       String?                  @db.Text
+  selectedAt         DateTime?
+  createdById        String
+  createdBy          User                     @relation("SelectionCreator", fields: [createdById], references: [id])
+  finalizedById      String?
+  finalizedBy        User?                    @relation("SelectionFinalizer", fields: [finalizedById], references: [id])
+  finalizedAt        DateTime?
+  scores             ResearchSelectionScore[]
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([result])
+  @@index([createdAt])
+  @@index([researchProposalId])
+}
+
+model ResearchSelectionCriteria {
+  id          String                   @id @default(uuid())
+  code        String                   @unique
+  name        String
+  description String?                  @db.Text
+  weight      Float
+  isActive    Boolean                  @default(true)
+  order       Int                      @default(0)
+  scores      ResearchSelectionScore[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+}
+
+model ResearchSelectionScore {
+  id             String                    @id @default(uuid())
+  selectionId    String
+  selection      ResearchSelection         @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  criteriaId     String
+  criteria       ResearchSelectionCriteria @relation(fields: [criteriaId], references: [id])
+  weightSnapshot Float
+  score          Float?
+  note           String?                   @db.Text
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@unique([selectionId, criteriaId])
+  @@index([selectionId])
+  @@index([criteriaId])
+}
+
+// ==========================================
+// FASE 5: KAK & RAB / Kerangka Acuan Kerja & Rencana Anggaran Biaya
+// ==========================================
+
+enum KakStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  FINALIZED
+  CANCELLED
+}
+
+enum RabStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  FINALIZED
+  CANCELLED
+}
+
+enum RabItemCategory {
+  PERSONNEL
+  TRANSPORTATION
+  ACCOMMODATION
+  CONSUMABLES
+  EQUIPMENT
+  DATA_COLLECTION
+  DATA_PROCESSING
+  MEETING
+  DISSEMINATION
+  DOCUMENTATION
+  OTHER
+}
+
+model ResearchKak {
+  id                  String            @id @default(uuid())
+  code                String            @unique
+  researchProposalId  String            @unique
+  researchProposal    ResearchProposal  @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  version             Int               @default(1)
+  status              KakStatus         @default(DRAFT)
+  background          String?           @db.Text
+  legalBasis          String?           @db.Text
+  purpose             String?           @db.Text
+  objective           String?           @db.Text
+  researchScope       String?           @db.Text
+  researchLocation    String?
+  researchDuration    String?
+  researchMethodology String?           @db.Text
+  researchStages      String?           @db.Text
+  expectedOutput      String?           @db.Text
+  expectedOutcome     String?           @db.Text
+  successIndicator    String?           @db.Text
+  deliverables        String?           @db.Text
+  estimatedStartDate  DateTime?
+  estimatedEndDate    DateTime?
+  reviewNote          String?           @db.Text
+  cancelReason        String?           @db.Text
+  createdById         String
+  createdBy           User              @relation("KakCreator", fields: [createdById], references: [id])
+  submittedById       String?
+  submittedBy         User?             @relation("KakSubmitter", fields: [submittedById], references: [id])
+  submittedAt         DateTime?
+  finalizedById       String?
+  finalizedBy         User?             @relation("KakFinalizer", fields: [finalizedById], references: [id])
+  finalizedAt         DateTime?
+  rab                 ResearchRab?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([researchProposalId])
+}
+
+model ResearchRab {
+  id             String            @id @default(uuid())
+  code           String            @unique
+  researchKakId  String            @unique
+  researchKak    ResearchKak       @relation(fields: [researchKakId], references: [id], onDelete: Cascade)
+  version        Int               @default(1)
+  status         RabStatus         @default(DRAFT)
+  totalAmount    Decimal           @default(0) @db.Decimal(18, 2)
+  notes          String?           @db.Text
+  reviewNote     String?           @db.Text
+  cancelReason   String?           @db.Text
+  createdById    String
+  createdBy      User              @relation("RabCreator", fields: [createdById], references: [id])
+  submittedById  String?
+  submittedBy    User?             @relation("RabSubmitter", fields: [submittedById], references: [id])
+  submittedAt    DateTime?
+  finalizedById  String?
+  finalizedBy    User?             @relation("RabFinalizer", fields: [finalizedById], references: [id])
+  finalizedAt    DateTime?
+  items          ResearchRabItem[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([researchKakId])
+}
+
+model ResearchRabItem {
+  id            String          @id @default(uuid())
+  researchRabId String
+  researchRab   ResearchRab     @relation(fields: [researchRabId], references: [id], onDelete: Cascade)
+  category      RabItemCategory @default(OTHER)
+  description   String
+  unit          String
+  quantity      Decimal         @db.Decimal(18, 2)
+  unitPrice     Decimal         @db.Decimal(18, 2)
+  subtotal      Decimal         @db.Decimal(18, 2)
+  order         Int             @default(0)
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([researchRabId])
+  @@index([category])
+  @@index([order])
+}
+
+enum PartnerType {
+  UNIVERSITY
+  RESEARCH_INSTITUTION
+  CONSULTANT
+  COMPANY
+  INDIVIDUAL
+  INTERNAL_BRIDA
+  OTHER
+}
+
+enum PartnerSelectionMethod {
+  SWAKELOLA
+  PENUNJUKAN_LANGSUNG
+  E_KATALOG
+  TENDER
+}
+
+enum PartnerSelectionStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  SELECTED
+  CANCELLED
+}
+
+enum PartnerDocumentType {
+  LEGAL_DOCUMENT
+  PROPOSAL
+  PROFILE
+  QUOTATION
+  CONTRACT_REFERENCE
+  SELECTION_DOCUMENT
+  E_KATALOG_REFERENCE
+  TENDER_DOCUMENT
+  OTHER
+}
+
+model ResearchPartner {
+  id                 String                     @id @default(uuid())
+  name               String
+  type               PartnerType                @default(OTHER)
+  institutionName    String?
+  contactPerson      String?
+  email              String?
+  phone              String?
+  address            String?                    @db.Text
+  taxIdentifier      String?
+  registrationNumber String?
+  website            String?
+  description        String?                    @db.Text
+  isActive           Boolean                    @default(true)
+  createdById        String?
+  createdBy          User?                      @relation("PartnerCreator", fields: [createdById], references: [id])
+  selections         ResearchPartnerSelection[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([name])
+  @@index([type])
+  @@index([isActive])
+  @@index([registrationNumber])
+}
+
+model ResearchPartnerSelection {
+  id                           String                    @id @default(uuid())
+  code                         String                    @unique
+  researchProposalId           String                    @unique
+  researchProposal             ResearchProposal          @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  method                       PartnerSelectionMethod
+  status                       PartnerSelectionStatus    @default(DRAFT)
+  partnerId                    String?
+  partner                      ResearchPartner?          @relation(fields: [partnerId], references: [id])
+  justification                String?                   @db.Text
+  externalSystem               String?
+  externalReference            String?
+  externalUrl                  String?
+  selfManagementType           String?
+  responsiblePerson            String?
+  implementationTeam           String?                   @db.Text
+  eCatalogProvider             String?
+  eCatalogProductId            String?
+  eCatalogTransactionReference String?
+  eCatalogUrl                  String?
+  tenderNumber                 String?
+  tenderSystem                 String?
+  tenderUrl                    String?
+  winnerReference              String?
+  estimatedValue               Decimal?                  @db.Decimal(18, 2)
+  finalValue                   Decimal?                  @db.Decimal(18, 2)
+  selectionDate                DateTime?
+  startDate                    DateTime?
+  endDate                      DateTime?
+  notes                        String?                   @db.Text
+  reviewNote                   String?                   @db.Text
+  cancelReason                 String?                   @db.Text
+  createdById                  String
+  createdBy                    User                      @relation("PartnerSelectionCreator", fields: [createdById], references: [id])
+  submittedById                String?
+  submittedBy                  User?                     @relation("PartnerSelectionSubmitter", fields: [submittedById], references: [id])
+  submittedAt                  DateTime?
+  finalizedById                String?
+  finalizedBy                  User?                     @relation("PartnerSelectionFinalizer", fields: [finalizedById], references: [id])
+  finalizedAt                  DateTime?
+  documents                    ResearchPartnerDocument[]
+  implementations              ResearchImplementation[]
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @updatedAt
+
+  @@index([status])
+  @@index([method])
+  @@index([partnerId])
+  @@index([createdAt])
+}
+
+model ResearchPartnerDocument {
+  id                         String                   @id @default(uuid())
+  researchPartnerSelectionId String
+  researchPartnerSelection   ResearchPartnerSelection @relation(fields: [researchPartnerSelectionId], references: [id], onDelete: Cascade)
+  documentType               PartnerDocumentType      @default(OTHER)
+  fileName                   String
+  filePath                   String
+  fileSize                   Int
+  mimeType                   String
+  description                String?                  @db.Text
+  uploadedById               String
+  uploadedBy                 User                     @relation("PartnerDocumentUploader", fields: [uploadedById], references: [id])
+  createdAt                  DateTime                 @default(now())
+
+  @@index([researchPartnerSelectionId])
+  @@index([documentType])
+  @@index([createdAt])
+}
+
+enum ImplementationStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum TimelineStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+  SKIPPED
+}
+
+enum MilestoneStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+  SKIPPED
+}
+
+enum ActivityStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum ImplementationDocumentType {
+  WORK_PLAN
+  TIMELINE
+  ACTIVITY_DOCUMENT
+  MEETING_DOCUMENT
+  FIELD_DOCUMENTATION
+  INTERIM_DOCUMENT
+  OTHER
+}
+
+model ResearchImplementation {
+  id                 String                           @id @default(uuid())
+  code               String                           @unique
+  researchProposalId String                           @unique
+  researchProposal   ResearchProposal                 @relation(fields: [researchProposalId], references: [id], onDelete: Cascade)
+  partnerSelectionId String
+  partnerSelection   ResearchPartnerSelection         @relation(fields: [partnerSelectionId], references: [id])
+  responsibleUserId  String
+  responsibleUser    User                             @relation("ImplementationResponsibleUser", fields: [responsibleUserId], references: [id])
+  startDate          DateTime
+  endDate            DateTime
+  actualStartDate    DateTime?
+  actualEndDate      DateTime?
+  status             ImplementationStatus             @default(PLANNED)
+  progress           Int                              @default(0)
+  description        String?                          @db.Text
+  notes              String?                          @db.Text
+  cancelReason       String?                          @db.Text
+  createdById        String
+  createdBy          User                             @relation("ImplementationCreator", fields: [createdById], references: [id])
+  timelines          ResearchTimeline[]
+  milestones         ResearchMilestone[]
+  activities         ResearchActivity[]
+  progressHistory    ResearchProgressUpdate[]
+  documents          ResearchImplementationDocument[]
+  reports            ResearchReport[]
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
+
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([responsibleUserId])
+  @@index([createdAt])
+}
+
+model ResearchProgressUpdate {
+  id               String                 @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  progress         Int
+  notes            String?                @db.Text
+  updatedById      String
+  updatedBy        User                   @relation("ProgressUpdateCreator", fields: [updatedById], references: [id])
+  createdAt        DateTime               @default(now())
+
+  @@index([implementationId])
+  @@index([createdAt])
+}
+
+model ResearchTimeline {
+  id               String                 @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?                @db.Text
+  startDate        DateTime
+  endDate          DateTime
+  order            Int                    @default(0)
+  status           TimelineStatus         @default(PENDING)
+  milestones       ResearchMilestone[]
+  activities       ResearchActivity[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([implementationId])
+  @@index([status])
+  @@index([order])
+  @@index([startDate])
+}
+
+model ResearchMilestone {
+  id               String                 @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  timelineId       String?
+  timeline         ResearchTimeline?      @relation(fields: [timelineId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?                @db.Text
+  targetDate       DateTime
+  completedDate    DateTime?
+  status           MilestoneStatus        @default(PENDING)
+  progress         Int                    @default(0)
+  order            Int                    @default(0)
+  activities       ResearchActivity[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([implementationId])
+  @@index([timelineId])
+  @@index([status])
+  @@index([targetDate])
+}
+
+model ResearchActivity {
+  id               String                 @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  timelineId       String?
+  timeline         ResearchTimeline?      @relation(fields: [timelineId], references: [id], onDelete: SetNull)
+  milestoneId      String?
+  milestone        ResearchMilestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?                @db.Text
+  activityDate     DateTime
+  status           ActivityStatus         @default(PLANNED)
+  createdById      String
+  createdBy        User                   @relation("ActivityCreator", fields: [createdById], references: [id])
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([implementationId])
+  @@index([timelineId])
+  @@index([milestoneId])
+  @@index([status])
+  @@index([activityDate])
+}
+
+model ResearchImplementationDocument {
+  id               String                     @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation     @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  documentType     ImplementationDocumentType @default(OTHER)
+  fileName         String
+  filePath         String
+  fileSize         Int
+  mimeType         String
+  description      String?                    @db.Text
+  uploadedById     String
+  uploadedBy       User                       @relation("ImplementationDocumentUploader", fields: [uploadedById], references: [id])
+  createdAt        DateTime                   @default(now())
+
+  @@index([implementationId])
+  @@index([documentType])
+  @@index([createdAt])
+}
+
+// ==========================================
+// FASE 8: LAPORAN PENELITIAN, POLICY BRIEF & REKOMENDASI
+// ==========================================
+
+enum ReportType {
+  FINAL_REPORT
+  INTERIM_REPORT
+  OTHER
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  APPROVED
+  REJECTED
+}
+
+enum ReportDocumentType {
+  FINAL_REPORT
+  APPENDIX
+  DATA_ATTACHMENT
+  SUPPORTING_DOCUMENT
+  OTHER
+}
+
+enum ReviewDecision {
+  APPROVE
+  REVISION
+  REJECT
+}
+
+enum PolicyBriefStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  APPROVED
+}
+
+enum PolicyBriefDocumentType {
+  POLICY_BRIEF
+  SUPPORTING_DOCUMENT
+  OTHER
+}
+
+enum RecommendationType {
+  POLICY
+  PROGRAM
+  APPLICATION
+  REGULATION
+  BUDGET
+  SERVICE_IMPROVEMENT
+  OTHER
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecommendationStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUIRED
+  APPROVED
+  PUBLISHED
+}
+
+enum RecommendationDocumentType {
+  RECOMMENDATION_LETTER
+  POLICY_DOCUMENT
+  SUPPORTING_DOCUMENT
+  OTHER
+}
+
+model ResearchReport {
+  id               String                   @id @default(uuid())
+  implementationId String
+  implementation   ResearchImplementation   @relation(fields: [implementationId], references: [id], onDelete: Cascade)
+  title            String
+  reportType       ReportType               @default(FINAL_REPORT)
+  version          String                   @default("v1")
+  status           ReportStatus             @default(DRAFT)
+  summary          String?                  @db.Text
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  approvedAt       DateTime?
+  createdById      String
+  createdBy        User                     @relation("ReportCreator", fields: [createdById], references: [id])
+  updatedById      String?
+  updatedBy        User?                    @relation("ReportUpdater", fields: [updatedById], references: [id])
+  documents        ResearchReportDocument[]
+  reviews          ResearchReportReview[]
+  policyBriefs     PolicyBrief[]
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([implementationId])
+  @@index([status])
+  @@index([reportType])
+  @@index([createdAt])
+}
+
+model ResearchReportDocument {
+  id           String             @id @default(uuid())
+  reportId     String
+  report       ResearchReport     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  documentType ReportDocumentType @default(FINAL_REPORT)
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  version      String             @default("v1")
+  description  String?            @db.Text
+  uploadedById String
+  uploadedBy   User               @relation("ReportDocumentUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime           @default(now())
+
+  @@index([reportId])
+  @@index([documentType])
+  @@index([createdAt])
+}
+
+model ResearchReportReview {
+  id         String         @id @default(uuid())
+  reportId   String
+  report     ResearchReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User           @relation("ReportReviewer", fields: [reviewerId], references: [id])
+  decision   ReviewDecision
+  notes      String?        @db.Text
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([reportId])
+  @@index([reviewerId])
+  @@index([createdAt])
+}
+
+model PolicyBrief {
+  id                String                    @id @default(uuid())
+  reportId          String
+  report            ResearchReport            @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  title             String
+  version           String                    @default("v1")
+  status            PolicyBriefStatus         @default(DRAFT)
+  executiveSummary  String?                   @db.Text
+  problemStatement  String?                   @db.Text
+  researchFindings  String?                   @db.Text
+  policyOptions     String?                   @db.Text
+  recommendedPolicy String?                   @db.Text
+  conclusion        String?                   @db.Text
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  approvedAt        DateTime?
+  createdById       String
+  createdBy         User                      @relation("PolicyBriefCreator", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?                     @relation("PolicyBriefUpdater", fields: [updatedById], references: [id])
+  documents         PolicyBriefDocument[]
+  reviews           PolicyBriefReview[]
+  recommendations   ResearchRecommendation[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([reportId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PolicyBriefDocument {
+  id            String                  @id @default(uuid())
+  policyBriefId String
+  policyBrief   PolicyBrief             @relation(fields: [policyBriefId], references: [id], onDelete: Cascade)
+  documentType  PolicyBriefDocumentType @default(POLICY_BRIEF)
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  version       String                  @default("v1")
+  description   String?                 @db.Text
+  uploadedById  String
+  uploadedBy    User                    @relation("PolicyBriefDocumentUploader", fields: [uploadedById], references: [id])
+  createdAt     DateTime                @default(now())
+
+  @@index([policyBriefId])
+  @@index([documentType])
+  @@index([createdAt])
+}
+
+model PolicyBriefReview {
+  id            String         @id @default(uuid())
+  policyBriefId String
+  policyBrief   PolicyBrief    @relation(fields: [policyBriefId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      User           @relation("PolicyBriefReviewer", fields: [reviewerId], references: [id])
+  decision      ReviewDecision
+  notes         String?        @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([policyBriefId])
+  @@index([reviewerId])
+  @@index([createdAt])
+}
+
+model ResearchRecommendation {
+  id                 String                     @id @default(uuid())
+  policyBriefId      String
+  policyBrief        PolicyBrief                @relation(fields: [policyBriefId], references: [id], onDelete: Cascade)
+  title              String
+  recommendationType RecommendationType         @default(POLICY)
+  targetOpdId        String
+  targetOpd          OPD                        @relation("TargetOpdRecommendations", fields: [targetOpdId], references: [id])
+  problem            String                     @db.Text
+  basis              String                     @db.Text
+  recommendation     String                     @db.Text
+  expectedImpact     String?                    @db.Text
+  priority           RecommendationPriority     @default(MEDIUM)
+  status             RecommendationStatus       @default(DRAFT)
+  submittedAt        DateTime?
+  approvedById       String?
+  approvedBy         User?                      @relation("RecommendationApprover", fields: [approvedById], references: [id])
+  approvedAt         DateTime?
+  publishedAt        DateTime?
+  createdById        String
+  createdBy          User                       @relation("RecommendationCreator", fields: [createdById], references: [id])
+  updatedById        String?
+  updatedBy          User?                      @relation("RecommendationUpdater", fields: [updatedById], references: [id])
+  documents          RecommendationDocument[]
+  reviews            RecommendationReview[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([policyBriefId])
+  @@index([targetOpdId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model RecommendationDocument {
+  id               String                     @id @default(uuid())
+  recommendationId String
+  recommendation   ResearchRecommendation     @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  documentType     RecommendationDocumentType @default(RECOMMENDATION_LETTER)
+  fileName         String
+  filePath         String
+  fileSize         Int
+  mimeType         String
+  version          String                     @default("v1")
+  description      String?                    @db.Text
+  uploadedById     String
+  uploadedBy       User                       @relation("RecommendationDocumentUploader", fields: [uploadedById], references: [id])
+  createdAt        DateTime                   @default(now())
+
+  @@index([recommendationId])
+  @@index([documentType])
+  @@index([createdAt])
+}
+
+model RecommendationReview {
+  id               String                 @id @default(uuid())
+  recommendationId String
+  recommendation   ResearchRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  reviewerId       String
+  reviewer         User                   @relation("RecommendationReviewer", fields: [reviewerId], references: [id])
+  decision         ReviewDecision
+  notes            String?                @db.Text
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([recommendationId])
+  @@index([reviewerId])
+  @@index([createdAt])
+}
+
+
+
+
+
+
+

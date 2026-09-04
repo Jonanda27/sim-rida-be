@@ -1,5 +1,5 @@
 const express = require('express');
-const { getSectors, getAreas, getResearchTypes } = require('../controllers/masterController');
+const { getSectors, getResearchTypes, getOpds } = require('../controllers/masterController');
 const { protect } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -17,5 +17,13 @@ router.get('/sectors', protect, getSectors);
  * @access  Private
  */
 router.get('/research-types', protect, getResearchTypes);
+
+/**
+ * @route   GET /api/v1/master/opds
+ * @desc    Mendapatkan seluruh daftar Master OPD aktif untuk pilihan dropdown
+ * @access  Private
+ */
+router.get('/opds', protect, getOpds);
+router.get('/', protect, getOpds);
 
 module.exports = router;

@@ -24,7 +24,20 @@ const getResearchTypes = async (req, res, next) => {
   }
 };
 
+const getOpds = async (req, res, next) => {
+  try {
+    const result = await masterService.getAllOpds();
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSectors,
   getResearchTypes,
+  getOpds,
 };

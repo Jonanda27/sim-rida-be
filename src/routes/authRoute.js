@@ -1,23 +1,30 @@
 const express = require('express');
-const { login, getMe } = require('../controllers/authController');
+const { login, getMe, logout } = require('../controllers/authController');
 const validate = require('../middlewares/validate');
 const { loginSchema } = require('../validations/authValidation');
-const { protect } = require('../middlewares/authMiddleware');
+const { requireAuth } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 /**
- * @route   POST /api/v1/auth/login
- * @desc    Autentikasi user dan mendapatkan JWT Token
+ * @route   POST /api/auth/login
+ * @desc    Authenticate user and return JWT
  * @access  Public
  */
 router.post('/login', validate(loginSchema), login);
 
 /**
- * @route   GET /api/v1/auth/me
- * @desc    Mendapatkan profil user yang sedang login berdasarkan token
+ * @route   GET /api/auth/me
+ * @desc    Get current user profile
  * @access  Private
  */
-router.get('/me', protect, getMe);
+router.get('/me', requireAuth, getMe);
+
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Logout user session
+ * @access  Public / Private
+ */
+router.post('/logout', logout);
 
 module.exports = router;

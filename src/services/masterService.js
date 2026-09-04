@@ -12,7 +12,15 @@ const getAllResearchTypes = async () => {
   });
 };
 
+const getAllOpds = async () => {
+  return await prisma.oPD.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+  });
+};
+
 module.exports = {
   getAllSectors,
   getAllResearchTypes,
+  getAllOpds,
 };

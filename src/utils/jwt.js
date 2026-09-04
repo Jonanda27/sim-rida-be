@@ -3,7 +3,7 @@ const env = require('../config/env');
 
 const signToken = (id, role) => {
   return jwt.sign({ id, role }, env.JWT_SECRET, {
-    expiresIn: '1d',
+    expiresIn: env.JWT_EXPIRES_IN || '1d',
   });
 };
 
