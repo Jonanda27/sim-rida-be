@@ -1,32 +1,35 @@
 const app = require('./app');
-const env = require('./config/env');
-const prisma = require('./config/db');
+const { PORT } = require('./config/env');
+const prisma = require('./config/prisma');
 
-const PORT = env.PORT || 5000;
+async function startServer() {
+  try {
+    // Check DB Connection
+    await prisma.$connect();
+    console.log('📦 Database PostgreSQL berhasil terhubung via Prisma.');
 
-const server = app.listen(PORT, () => {
-  console.log(`SIM-RIDA Backend is running on port ${PORT} in ${env.NODE_ENV} mode.`);
-});
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 SIM-RIDA Backend Server berjalan pada port ${PORT}`);
+      console.log(`📡 URL API: http://localhost:${PORT}/api/v1`);
+      console.log(`🩺 Health Check: http://localhost:${PORT}/api/v1/health`);
+    });
 
-// Graceful shutdown handling
-const shutdown = async (signal) => {
-  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
-  server.close(async () => {
-    try {
-      await prisma.$disconnect();
-      console.log('Database disconnected. Process terminated.');
-      process.exit(0);
-    } catch (err) {
-      console.error('Error during disconnect:', err.message);
-      process.exit(1);
-    }
-  });
-};
+    // Graceful Shutdown
+    const shutdown = async (signal) => {
+      console.log(`\n🛑 Menerima sinyal ${signal}. Menutup server secara aman...`);
+      server.close(async () => {
+        await prisma.$disconnect();
+        console.log('👋 Database terputus. Server berhenti.');
+        process.exit(0);
+      });
+    };
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+  } catch (error) {
+    console.error('❌ Gagal menjalankan server:', error);
+    process.exit(1);
+  }
+}
 
-process.on('unhandledRejection', (err) => {
-  console.error(`Unhandled Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+startServer();
