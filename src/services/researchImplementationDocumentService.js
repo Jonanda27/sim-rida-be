@@ -7,9 +7,82 @@ const { logAudit } = require('../utils/auditLogger');
  * Upload implementation document
  */
 const uploadDocument = async (implementationId, file, data, userId) => {
-  const implementation = await prisma.researchImplementation.findUnique({
-    where: { id: implementationId },
+  let implementation = await prisma.researchImplementation.findFirst({
+    where: {
+      OR: [
+        { id: implementationId },
+        { code: implementationId },
+        { researchProposalId: implementationId },
+        { researchProposal: { code: implementationId } },
+      ],
+    },
+    include: {
+      researchProposal: true,
+    },
   });
+
+  if (!implementation) {
+    // If not found, check if identifier matches a ResearchProposal that needs implementation initialized
+    const proposal = await prisma.researchProposal.findFirst({
+      where: {
+        OR: [
+          { id: implementationId },
+          { code: implementationId },
+        ],
+      },
+      include: {
+        partnerSelection: true,
+      },
+    });
+
+    if (proposal) {
+      const year = new Date().getFullYear();
+      const prefix = `IMP-${year}-`;
+      const latest = await prisma.researchImplementation.findFirst({
+        where: { code: { startsWith: prefix } },
+        orderBy: { code: 'desc' },
+        select: { code: true },
+      });
+      const seq = latest ? parseInt(latest.code.replace(prefix, ''), 10) + 1 : 1;
+      const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+      let partnerSelectionId = proposal.partnerSelection?.id;
+      if (!partnerSelectionId) {
+        const ps = await prisma.researchPartnerSelection.findFirst({
+          where: { researchProposalId: proposal.id },
+        });
+        partnerSelectionId = ps?.id;
+      }
+
+      if (!partnerSelectionId) {
+        const psCode = `SEL-${year}-${String(seq).padStart(3, '0')}`;
+        const newPs = await prisma.researchPartnerSelection.create({
+          data: {
+            code: psCode,
+            researchProposalId: proposal.id,
+            method: 'SWAKELOLA',
+            status: 'APPROVED',
+            createdById: userId,
+          },
+        });
+        partnerSelectionId = newPs.id;
+      }
+
+      implementation = await prisma.researchImplementation.create({
+        data: {
+          code,
+          researchProposalId: proposal.id,
+          partnerSelectionId,
+          responsibleUserId: userId,
+          createdById: userId,
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          status: 'ONGOING',
+          description: proposal.title,
+        },
+      });
+    }
+  }
 
   if (!implementation) {
     if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
@@ -36,10 +109,41 @@ const uploadDocument = async (implementationId, file, data, userId) => {
     throw error;
   }
 
+  const documentType = data.documentType || 'OTHER';
+
+  // If uploading TIMELINE document, delete previous timeline file(s) and database record(s) to avoid accumulation
+  if (documentType === 'TIMELINE') {
+    const existingTimelines = await prisma.researchImplementationDocument.findMany({
+      where: {
+        implementationId: implementation.id,
+        documentType: 'TIMELINE',
+      },
+    });
+
+    for (const oldDoc of existingTimelines) {
+      if (oldDoc.filePath && fs.existsSync(oldDoc.filePath)) {
+        try {
+          fs.unlinkSync(oldDoc.filePath);
+        } catch (err) {
+          console.error('Failed to unlink old timeline file:', err.message);
+        }
+      }
+    }
+
+    if (existingTimelines.length > 0) {
+      await prisma.researchImplementationDocument.deleteMany({
+        where: {
+          implementationId: implementation.id,
+          documentType: 'TIMELINE',
+        },
+      });
+    }
+  }
+
   const document = await prisma.researchImplementationDocument.create({
     data: {
-      implementationId,
-      documentType: data.documentType || 'OTHER',
+      implementationId: implementation.id,
+      documentType,
       fileName: file.originalname,
       filePath: file.path,
       fileSize: file.size,
@@ -59,7 +163,7 @@ const uploadDocument = async (implementationId, file, data, userId) => {
     'RESEARCH_IMPLEMENTATION_DOCUMENT_UPLOADED',
     'ResearchImplementationDocument',
     document.id,
-    { implementationId, fileName: document.fileName, documentType: document.documentType }
+    { implementationId: implementation.id, fileName: document.fileName, documentType: document.documentType }
   );
 
   return document;
@@ -69,19 +173,23 @@ const uploadDocument = async (implementationId, file, data, userId) => {
  * Get implementation documents
  */
 const getDocuments = async (implementationId) => {
-  const implementation = await prisma.researchImplementation.findUnique({
-    where: { id: implementationId },
+  const implementation = await prisma.researchImplementation.findFirst({
+    where: {
+      OR: [
+        { id: implementationId },
+        { code: implementationId },
+        { researchProposalId: implementationId },
+        { researchProposal: { code: implementationId } },
+      ],
+    },
   });
 
   if (!implementation) {
-    const error = new Error('Pelaksanaan penelitian tidak ditemukan.');
-    error.statusCode = 404;
-    error.code = 'IMPLEMENTATION_NOT_FOUND';
-    throw error;
+    return [];
   }
 
   const documents = await prisma.researchImplementationDocument.findMany({
-    where: { implementationId },
+    where: { implementationId: implementation.id },
     orderBy: { createdAt: 'desc' },
     include: {
       uploadedBy: {

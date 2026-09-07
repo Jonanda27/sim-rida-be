@@ -1,31 +1,8 @@
 const problemIdentificationService = require('../services/problemIdentificationService');
 
-// @desc    Trigger AI analysis on an external source
-// @route   POST /api/external-sources/:id/analyze
-// @access  Private (BRIDA)
-const analyzeSource = async (req, res, next) => {
-  try {
-    const result = await problemIdentificationService.analyzeSource(
-      req.params.id,
-      req.user.id,
-      { force: req.body?.force === true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: result.isExisting
-        ? 'Existing AI analysis retrieved.'
-        : 'AI analysis completed successfully.',
-      data: result.data,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Create a new problem identification
+// @desc    Create a new problem identification (BRIDA analysis)
 // @route   POST /api/problem-identifications
-// @access  Private (BRIDA)
+// @access  Private (ADMIN_BRIDA, BRIDA)
 const createProblemIdentification = async (req, res, next) => {
   try {
     const result = await problemIdentificationService.createProblemIdentification(
@@ -34,7 +11,7 @@ const createProblemIdentification = async (req, res, next) => {
     );
     res.status(201).json({
       success: true,
-      message: 'Problem identification created successfully',
+      message: 'Identifikasi kebutuhan OPD berhasil dibuat.',
       data: result,
     });
   } catch (error) {
@@ -50,7 +27,7 @@ const getProblemIdentifications = async (req, res, next) => {
     const result = await problemIdentificationService.getProblemIdentifications(req.query);
     res.status(200).json({
       success: true,
-      message: 'Problem identifications retrieved successfully',
+      message: 'Daftar identifikasi kebutuhan OPD berhasil dimuat.',
       ...result,
     });
   } catch (error) {
@@ -66,7 +43,7 @@ const getProblemIdentificationById = async (req, res, next) => {
     const record = await problemIdentificationService.getProblemIdentificationById(req.params.id);
     res.status(200).json({
       success: true,
-      message: 'Problem identification retrieved successfully',
+      message: 'Detail identifikasi kebutuhan OPD berhasil dimuat.',
       data: record,
     });
   } catch (error) {
@@ -74,9 +51,9 @@ const getProblemIdentificationById = async (req, res, next) => {
   }
 };
 
-// @desc    Update problem identification (Edit findings or details)
+// @desc    Update problem identification (Edit by BRIDA)
 // @route   PATCH /api/problem-identifications/:id
-// @access  Private (BRIDA)
+// @access  Private (ADMIN_BRIDA, BRIDA)
 const updateProblemIdentification = async (req, res, next) => {
   try {
     const updated = await problemIdentificationService.updateProblemIdentification(
@@ -86,7 +63,7 @@ const updateProblemIdentification = async (req, res, next) => {
     );
     res.status(200).json({
       success: true,
-      message: 'Problem identification updated successfully',
+      message: 'Identifikasi kebutuhan OPD berhasil diperbarui.',
       data: updated,
     });
   } catch (error) {
@@ -94,68 +71,95 @@ const updateProblemIdentification = async (req, res, next) => {
   }
 };
 
-// @desc    Approve problem identification by BRIDA
+// @desc    Approve/Validate problem identification
 // @route   POST /api/problem-identifications/:id/approve
-// @access  Private (BRIDA)
+// @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
 const approveProblemIdentification = async (req, res, next) => {
   try {
-    const approved = await problemIdentificationService.approveProblemIdentification(
+    const result = await problemIdentificationService.approveIdentification(
       req.params.id,
-      req.user.id
+      req.user.id,
+      req.body?.reviewNote
     );
     res.status(200).json({
       success: true,
-      message: 'Problem identification successfully approved by BRIDA.',
-      data: approved,
+      message: 'Identifikasi kebutuhan OPD berhasil disetujui dan ditetapkan.',
+      data: result,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Reject problem identification by BRIDA
+// @desc    Reject problem identification
 // @route   POST /api/problem-identifications/:id/reject
-// @access  Private (BRIDA)
+// @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
 const rejectProblemIdentification = async (req, res, next) => {
   try {
-    const rejected = await problemIdentificationService.rejectProblemIdentification(
+    const result = await problemIdentificationService.rejectIdentification(
       req.params.id,
-      req.body.reviewNote,
-      req.user.id
+      req.user.id,
+      req.body?.reviewNote
     );
     res.status(200).json({
       success: true,
-      message: 'Problem identification rejected.',
-      data: rejected,
+      message: 'Identifikasi kebutuhan OPD berhasil ditolak.',
+      data: result,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Validate / Decide problem identification (Approve or Reject)
+// @desc    Delete problem identification
+// @route   DELETE /api/problem-identifications/:id
+// @access  Private (ADMIN_BRIDA, BRIDA)
+const deleteProblemIdentification = async (req, res, next) => {
+  try {
+    const result = await problemIdentificationService.deleteProblemIdentification(
+      req.params.id,
+      req.user.id
+    );
+    res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Validate (Approve or Reject) problem identification
 // @route   POST /api/problem-identifications/:id/validate
-// @access  Private (BRIDA)
+// @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
 const validateProblemIdentification = async (req, res, next) => {
   try {
     const { decision, notes, reviewNote } = req.body;
-    const note = notes || reviewNote;
+    const finalNote = notes || reviewNote;
     let result;
-    if (decision === 'REJECT') {
-      result = await problemIdentificationService.rejectProblemIdentification(
+
+    if (decision === 'APPROVE' || decision === 'APPROVED') {
+      result = await problemIdentificationService.approveIdentification(
         req.params.id,
-        note || 'Ditolak oleh verifikator BRIDA',
-        req.user.id
+        req.user.id,
+        finalNote
+      );
+    } else if (decision === 'REJECT' || decision === 'REJECTED') {
+      result = await problemIdentificationService.rejectIdentification(
+        req.params.id,
+        req.user.id,
+        finalNote
       );
     } else {
-      result = await problemIdentificationService.approveProblemIdentification(
-        req.params.id,
-        req.user.id
-      );
+      return res.status(400).json({
+        success: false,
+        message: 'Keputusan validasi harus APPROVE atau REJECT.',
+      });
     }
+
     res.status(200).json({
       success: true,
-      message: decision === 'REJECT' ? 'Problem identification rejected.' : 'Problem identification successfully approved/validated.',
+      message: `Identifikasi kebutuhan OPD berhasil di-${decision.toLowerCase()}.`,
       data: result,
     });
   } catch (error) {
@@ -164,7 +168,6 @@ const validateProblemIdentification = async (req, res, next) => {
 };
 
 module.exports = {
-  analyzeSource,
   createProblemIdentification,
   getProblemIdentifications,
   getProblemIdentificationById,
@@ -172,4 +175,6 @@ module.exports = {
   approveProblemIdentification,
   rejectProblemIdentification,
   validateProblemIdentification,
+  deleteProblemIdentification,
 };
+

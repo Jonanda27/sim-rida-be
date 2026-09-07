@@ -49,6 +49,31 @@ const proposalDetailInclude = {
   reviewedBy: {
     select: { id: true, name: true, email: true, role: true },
   },
+  selection: {
+    include: {
+      createdBy: {
+        select: { id: true, name: true, email: true, role: true },
+      },
+      finalizedBy: {
+        select: { id: true, name: true, email: true, role: true },
+      },
+      scores: {
+        include: {
+          criteria: true,
+        },
+        orderBy: {
+          criteria: { order: 'asc' },
+        },
+      },
+    },
+  },
+  kak: true,
+  partnerSelection: {
+    include: {
+      partner: true,
+    },
+  },
+  implementation: true,
   problems: {
     include: {
       problemIdentification: {
@@ -88,8 +113,44 @@ const formatProposalResponse = (proposal) => {
 
   const primaryOpdRel = proposal.relatedOpds?.find((o) => o.isPrimary);
 
+  const formattedSelection = proposal.selection
+    ? {
+        id: proposal.selection.id,
+        code: proposal.selection.code,
+        status: proposal.selection.status,
+        totalScore: proposal.selection.totalScore,
+        result: proposal.selection.result,
+        selectionNote: proposal.selection.selectionNote,
+        cancelReason: proposal.selection.cancelReason,
+        selectedAt: proposal.selection.selectedAt,
+        createdAt: proposal.selection.createdAt,
+        updatedAt: proposal.selection.updatedAt,
+        finalizedAt: proposal.selection.finalizedAt,
+        createdBy: proposal.selection.createdBy,
+        finalizedBy: proposal.selection.finalizedBy,
+        scores: (proposal.selection.scores || []).map((s) => {
+          const weight = typeof s.weightSnapshot === 'number' ? s.weightSnapshot : (s.criteria?.weight || 0);
+          const score = s.score;
+          const weightedScore = score !== null && score !== undefined ? Math.round(((score * weight) / 100) * 100) / 100 : null;
+          return {
+            id: s.id,
+            scoreId: s.id,
+            criteriaId: s.criteriaId,
+            code: s.criteria?.code || '',
+            name: s.criteria?.name || '',
+            description: s.criteria?.description || null,
+            weight: weight,
+            score: score,
+            weightedScore: weightedScore,
+            note: s.note,
+          };
+        }),
+      }
+    : null;
+
   return {
     ...proposal,
+    selection: formattedSelection,
     primaryProblem: primaryProblemRel
       ? {
           id: primaryProblemRel.problemIdentification.id,
@@ -214,6 +275,21 @@ const getResearchProposals = async (query = {}) => {
             },
           },
         },
+        selection: {
+          include: {
+            finalizedBy: {
+              select: { id: true, name: true, role: true },
+            },
+            scores: {
+              include: {
+                criteria: true,
+              },
+              orderBy: {
+                criteria: { order: 'asc' },
+              },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -222,12 +298,43 @@ const getResearchProposals = async (query = {}) => {
     const primaryProb = p.problems.find((pr) => pr.isPrimary) || p.problems[0];
     const primaryOpd = p.relatedOpds.find((ro) => ro.isPrimary) || p.relatedOpds[0];
 
+    const formattedSelection = p.selection
+      ? {
+          id: p.selection.id,
+          code: p.selection.code,
+          status: p.selection.status,
+          totalScore: p.selection.totalScore,
+          result: p.selection.result,
+          selectionNote: p.selection.selectionNote,
+          finalizedAt: p.selection.finalizedAt,
+          finalizedBy: p.selection.finalizedBy,
+          scores: (p.selection.scores || []).map((s) => {
+            const weight = typeof s.weightSnapshot === 'number' ? s.weightSnapshot : (s.criteria?.weight || 0);
+            const score = s.score;
+            const weightedScore = score !== null && score !== undefined ? Math.round(((score * weight) / 100) * 100) / 100 : null;
+            return {
+              id: s.id,
+              criteriaId: s.criteriaId,
+              code: s.criteria?.code || '',
+              name: s.criteria?.name || '',
+              weight,
+              score,
+              weightedScore,
+              note: s.note,
+            };
+          }),
+        }
+      : null;
+
     return {
       id: p.id,
       code: p.code,
       title: p.title,
       priority: p.priority,
       status: p.status,
+      selection: formattedSelection,
+      totalScore: p.selection?.totalScore ?? null,
+      selectionResult: p.selection?.result ?? null,
       primaryProblem: primaryProb
         ? {
             id: primaryProb.problemIdentification.id,

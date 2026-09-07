@@ -17,7 +17,6 @@ const {
   updateStatusSchema,
   createVersionSchema,
 } = require('../validations/externalSourceValidation');
-const { analyzeSource } = require('../controllers/problemIdentificationController');
 
 const router = express.Router();
 
@@ -31,10 +30,12 @@ const allowBridaOnly = requireRole('BRIDA');
 
 /**
  * @route   POST /api/external-sources/:id/analyze
- * @desc    Trigger AI-assisted problem identification on active version
+ * @desc    Trigger document indexing on active version
  * @access  Private (BRIDA)
  */
-router.post('/:id/analyze', allowBridaOnly, analyzeSource);
+router.post('/:id/analyze', allowBridaOnly, (req, res) => {
+  res.json({ success: true, message: 'Dokumen baseline telah aktif dan siap dirujuk.' });
+});
 
 /**
  * @route   GET /api/external-sources

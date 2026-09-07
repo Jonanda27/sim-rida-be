@@ -7,6 +7,7 @@ const {
   approveProblemIdentification,
   rejectProblemIdentification,
   validateProblemIdentification,
+  deleteProblemIdentification,
 } = require('../controllers/problemIdentificationController');
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
 const validate = require('../middlewares/validate');
@@ -24,25 +25,25 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Read routes: Accessible by ADMIN_BRIDA, BRIDA, KEPALA_BRIDA
-const allowReadRoles = requireRole('ADMIN_BRIDA', 'BRIDA', 'KEPALA_BRIDA');
-// Mutation routes: BRIDA only
-const allowBridaOnly = requireRole('BRIDA');
+const allowReadRoles = requireRole(['ADMIN_BRIDA', 'BRIDA', 'KEPALA_BRIDA']);
+// Mutation routes: ADMIN_BRIDA, BRIDA
+const allowMutationRoles = requireRole(['ADMIN_BRIDA', 'BRIDA']);
 
 /**
  * @route   POST /api/problem-identifications
- * @desc    Create a new problem identification
- * @access  Private (BRIDA)
+ * @desc    Create a new problem identification (BRIDA analysis)
+ * @access  Private (ADMIN_BRIDA, BRIDA)
  */
-router.post('/', allowBridaOnly, validate(createProblemIdentificationSchema), createProblemIdentification);
+router.post('/', allowMutationRoles, validate(createProblemIdentificationSchema), createProblemIdentification);
 
 /**
  * @route   POST /api/problem-identifications/:id/research-proposals
  * @desc    Create a research proposal directly from an approved problem identification
- * @access  Private (BRIDA)
+ * @access  Private (ADMIN_BRIDA, BRIDA)
  */
 router.post(
   '/:id/research-proposals',
-  allowBridaOnly,
+  allowMutationRoles,
   validate(createFromProblemSchema),
   createResearchProposalFromProblem
 );
@@ -63,31 +64,37 @@ router.get('/:id', allowReadRoles, getProblemIdentificationById);
 
 /**
  * @route   PATCH /api/problem-identifications/:id
- * @desc    Update problem identification (Edit title, description, findings)
- * @access  Private (BRIDA)
+ * @desc    Update problem identification (Edit by BRIDA)
+ * @access  Private (ADMIN_BRIDA, BRIDA)
  */
-router.patch('/:id', allowBridaOnly, validate(updateProblemIdentificationSchema), updateProblemIdentification);
+router.patch('/:id', allowMutationRoles, validate(updateProblemIdentificationSchema), updateProblemIdentification);
 
 /**
  * @route   POST /api/problem-identifications/:id/approve
- * @desc    Approve problem identification by BRIDA
- * @access  Private (BRIDA)
+ * @desc    Approve problem identification
+ * @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
  */
-router.post('/:id/approve', allowBridaOnly, approveProblemIdentification);
+router.post('/:id/approve', allowReadRoles, approveProblemIdentification);
 
 /**
  * @route   POST /api/problem-identifications/:id/reject
  * @desc    Reject problem identification with reviewNote
- * @access  Private (BRIDA)
+ * @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
  */
-router.post('/:id/reject', allowBridaOnly, validate(rejectProblemIdentificationSchema), rejectProblemIdentification);
+router.post('/:id/reject', allowReadRoles, validate(rejectProblemIdentificationSchema), rejectProblemIdentification);
 
 /**
  * @route   POST /api/problem-identifications/:id/validate
- * @desc    Validate / Decide problem identification (Approve or Reject)
- * @access  Private (BRIDA)
+ * @desc    Validate (Approve or Reject) problem identification
+ * @access  Private (ADMIN_BRIDA, BRIDA, KEPALA_BRIDA)
  */
-router.post('/:id/validate', allowBridaOnly, validateProblemIdentification);
+router.post('/:id/validate', allowReadRoles, validateProblemIdentification);
+
+/**
+ * @route   DELETE /api/problem-identifications/:id
+ * @desc    Delete problem identification
+ * @access  Private (ADMIN_BRIDA, BRIDA)
+ */
+router.delete('/:id', allowMutationRoles, deleteProblemIdentification);
 
 module.exports = router;
-

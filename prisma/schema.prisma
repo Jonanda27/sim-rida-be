@@ -204,6 +204,7 @@ model OPD {
   updatedAt   DateTime @updatedAt
   users       User[]
   problemIdentificationOpds ProblemIdentificationOpd[]
+  directProblemIdentifications ProblemIdentification[] @relation("DirectOpdProblemIdentifications")
   researchProposalOpds      ResearchProposalOpd[]
   recommendations           ResearchRecommendation[] @relation("TargetOpdRecommendations")
 }
@@ -312,28 +313,43 @@ model ExternalSourceDocument {
 }
 
 model ProblemIdentification {
-  id              String                        @id @default(uuid())
-  code            String                        @unique
-  title           String
-  description     String
-  status          ProblemIdentificationStatus   @default(AI_GENERATED)
-  sourceVersionId String
-  sourceVersion   ExternalSourceVersion         @relation(fields: [sourceVersionId], references: [id])
-  createdById     String
-  createdBy       User                          @relation("ProblemIdentificationCreator", fields: [createdById], references: [id])
-  reviewedById    String?
-  reviewedBy      User?                         @relation("ProblemIdentificationReviewer", fields: [reviewedById], references: [id])
-  reviewedAt      DateTime?
-  reviewNote      String?
-  aiMetadata      Json?
-  findings        ProblemIdentificationFinding[]
-  relatedOpds     ProblemIdentificationOpd[]
+  id                    String                        @id @default(uuid())
+  code                  String                        @unique
+  title                 String
+  year                  Int                           @default(2026)
+  field                 String?
+  bridaFindings         String?                       @db.Text
+  currentCondition      String?                       @db.Text
+  problemStatement      String?                       @db.Text
+  impact                String?                       @db.Text
+  potentialNeed         String?                       @db.Text
+  priority              ProposalPriority              @default(MEDIUM)
+  description           String?                       @db.Text
+  status                ProblemIdentificationStatus   @default(DRAFT)
+  sourceVersionId       String?
+  sourceVersion         ExternalSourceVersion?        @relation(fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  baselineRelationship  String?                       @db.Text
+  analysisNotes         String?                       @db.Text
+  opdId                 String?
+  opd                   OPD?                          @relation("DirectOpdProblemIdentifications", fields: [opdId], references: [id], onDelete: SetNull)
+  createdById           String
+  createdBy             User                          @relation("ProblemIdentificationCreator", fields: [createdById], references: [id])
+  reviewedById          String?
+  reviewedBy            User?                         @relation("ProblemIdentificationReviewer", fields: [reviewedById], references: [id])
+  reviewedAt            DateTime?
+  reviewNote            String?                       @db.Text
+  aiMetadata            Json?
+  findings              ProblemIdentificationFinding[]
+  relatedOpds           ProblemIdentificationOpd[]
   researchProposalProblems ResearchProposalProblem[]
-  createdAt       DateTime                      @default(now())
-  updatedAt       DateTime                      @updatedAt
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
 
   @@index([status])
+  @@index([priority])
   @@index([sourceVersionId])
+  @@index([opdId])
+  @@index([year])
   @@index([createdAt])
 }
 
@@ -583,6 +599,7 @@ model ResearchKak {
   estimatedEndDate    DateTime?
   reviewNote          String?           @db.Text
   cancelReason        String?           @db.Text
+  budgetEstimate      Decimal?          @default(0) @db.Decimal(18, 2)
   createdById         String
   createdBy           User              @relation("KakCreator", fields: [createdById], references: [id])
   submittedById       String?

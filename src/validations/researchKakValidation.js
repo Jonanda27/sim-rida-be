@@ -45,6 +45,8 @@ const createKakSchema = z.object({
       deliverables: z.string().optional(),
       personnel: z.string().optional(),
       target: z.string().optional(),
+      budgetEstimate: z.number().or(z.string().regex(/^\d+(\.\d+)?$/)).optional(),
+      budgetEstimates: z.number().or(z.string().regex(/^\d+(\.\d+)?$/)).optional(),
       estimatedStartDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
       estimatedEndDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     })
@@ -79,6 +81,8 @@ const updateKakSchema = z.object({
       deliverables: z.string().optional(),
       personnel: z.string().optional(),
       target: z.string().optional(),
+      budgetEstimate: z.number().or(z.string().regex(/^\d+(\.\d+)?$/)).optional(),
+      budgetEstimates: z.number().or(z.string().regex(/^\d+(\.\d+)?$/)).optional(),
       estimatedStartDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
       estimatedEndDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     })

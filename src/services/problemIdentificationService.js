@@ -1,9 +1,8 @@
 const prisma = require('../config/db');
-const { analyzeExternalSource } = require('./ai/openai.service');
 const { logAudit } = require('../utils/auditLogger');
 
 /**
- * Common select pattern for problem identification
+ * Common include pattern for problem identification
  */
 const problemIdentificationInclude = {
   createdBy: {
@@ -11,6 +10,9 @@ const problemIdentificationInclude = {
   },
   reviewedBy: {
     select: { id: true, name: true, email: true, role: true },
+  },
+  opd: {
+    select: { id: true, code: true, name: true, shortName: true },
   },
   sourceVersion: {
     include: {
@@ -50,300 +52,167 @@ const problemIdentificationInclude = {
       },
     },
   },
-};
-
-/**
- * Trigger AI analysis on current version of an external source
- */
-const analyzeSource = async (sourceId, userId, options = {}) => {
-  const source = await prisma.externalSource.findUnique({
-    where: { id: sourceId },
+  researchProposalProblems: {
     include: {
-      currentVersion: {
-        include: {
-          document: true,
-        },
+      researchProposal: {
+        select: { id: true, code: true, title: true, status: true },
       },
     },
-  });
-
-  if (!source) {
-    const error = new Error(`External source with ID ${sourceId} not found.`);
-    error.statusCode = 404;
-    error.code = 'NOT_FOUND';
-    throw error;
-  }
-
-  if (source.status !== 'ACTIVE') {
-    const error = new Error(`Source is ${source.status}. AI analysis can only be performed on ACTIVE sources.`);
-    error.statusCode = 400;
-    error.code = 'SOURCE_NOT_ACTIVE';
-    throw error;
-  }
-
-  if (!source.currentVersion) {
-    const error = new Error('External source does not have any active version yet. Please upload a document version first.');
-    error.statusCode = 400;
-    error.code = 'NO_ACTIVE_VERSION';
-    throw error;
-  }
-
-  const { currentVersion } = source;
-  const { document } = currentVersion;
-
-  if (!document) {
-    const error = new Error('Current version has no associated document file.');
-    error.statusCode = 400;
-    error.code = 'NO_DOCUMENT';
-    throw error;
-  }
-
-  if (document.extractionStatus !== 'COMPLETED' || !document.extractedText) {
-    const error = new Error(
-      `Cannot perform AI analysis because document text extraction is ${document.extractionStatus}. ` +
-      (document.extractionError ? `Reason: ${document.extractionError}` : 'Document has no readable text.')
-    );
-    error.statusCode = 400;
-    error.code = 'TEXT_NOT_EXTRACTED';
-    throw error;
-  }
-
-  // 1. Prevent duplicate analysis: Return existing analysis if already performed
-  if (!options.force) {
-    const existingAnalysis = await prisma.problemIdentification.findFirst({
-      where: {
-        sourceVersionId: currentVersion.id,
-        status: { in: ['AI_GENERATED', 'UNDER_REVIEW', 'APPROVED'] },
-      },
-      include: problemIdentificationInclude,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (existingAnalysis) {
-      return {
-        isExisting: true,
-        data: existingAnalysis,
-      };
-    }
-  }
-
-  // 2. Audit: AI Analysis Started
-  logAudit({
-    userId,
-    action: 'AI_ANALYSIS_STARTED',
-    entity: 'ExternalSourceVersion',
-    entityId: currentVersion.id,
-    metadata: { sourceId, versionNumber: currentVersion.versionNumber },
-  });
-
-  // 3. Invoke AI Service
-  let aiResult;
-  try {
-    aiResult = await analyzeExternalSource(document.extractedText, {
-      code: source.code,
-      title: source.title,
-      sourceType: source.sourceType,
-      institution: source.institution,
-      versionNumber: currentVersion.versionNumber,
-    });
-  } catch (aiErr) {
-    logAudit({
-      userId,
-      action: 'AI_ANALYSIS_FAILED',
-      entity: 'ExternalSourceVersion',
-      entityId: currentVersion.id,
-      metadata: { error: aiErr.message, code: aiErr.code },
-    });
-    throw aiErr;
-  }
-
-  // 4. Fetch all master OPDs to map suggested OPD codes
-  const allOpds = await prisma.oPD.findMany();
-  const opdMapByCode = new Map(allOpds.map((o) => [o.code, o]));
-  const opdMapByShortName = new Map(allOpds.map((o) => [o.shortName.toLowerCase(), o]));
-
-  // 5. Transactionally save ProblemIdentification, Findings, and Related OPDs
-  const generatedCode = `PID-${source.code}-V${currentVersion.versionNumber}-${Date.now().toString().slice(-6)}`;
-
-  const createdIdentification = await prisma.$transaction(async (tx) => {
-    // a. Create parent problem identification
-    const identification = await tx.problemIdentification.create({
-      data: {
-        code: generatedCode,
-        title: aiResult.title || `Identifikasi Permasalahan: ${source.title}`,
-        description: aiResult.description || `Hasil identifikasi otomatis berbasis dokumen ${source.title}`,
-        status: 'AI_GENERATED',
-        sourceVersionId: currentVersion.id,
-        createdById: userId,
-        aiMetadata: aiResult.aiMetadata,
-      },
-    });
-
-    // b. Create findings and map related OPDs
-    const uniqueOpdIds = new Set();
-
-    for (const p of aiResult.problems) {
-      await tx.problemIdentificationFinding.create({
-        data: {
-          problemIdentificationId: identification.id,
-          title: p.title,
-          description: p.description,
-          evidence: p.evidence || null,
-          confidence: typeof p.confidence === 'number' ? p.confidence : 0.85,
-          sourceReference: p.sourceReference || null,
-        },
-      });
-
-      // Map suggested OPDs
-      if (Array.isArray(p.suggestedOpds)) {
-        for (const sugg of p.suggestedOpds) {
-          const matchedOpd = opdMapByCode.get(sugg.opdCode) || opdMapByShortName.get((sugg.opdCode || '').toLowerCase());
-          if (matchedOpd && !uniqueOpdIds.has(matchedOpd.id)) {
-            uniqueOpdIds.add(matchedOpd.id);
-            await tx.problemIdentificationOpd.create({
-              data: {
-                problemIdentificationId: identification.id,
-                opdId: matchedOpd.id,
-                relevanceScore: typeof sugg.relevanceScore === 'number' ? sugg.relevanceScore : 0.85,
-                reason: sugg.reason || null,
-              },
-            });
-          }
-        }
-      }
-    }
-
-    return identification;
-  });
-
-  logAudit({
-    userId,
-    action: 'AI_ANALYSIS_COMPLETED',
-    entity: 'ProblemIdentification',
-    entityId: createdIdentification.id,
-    metadata: {
-      sourceId,
-      sourceVersionId: currentVersion.id,
-      findingsCount: aiResult.problems.length,
-    },
-  });
-
-  const fullRecord = await prisma.problemIdentification.findUnique({
-    where: { id: createdIdentification.id },
-    include: problemIdentificationInclude,
-  });
-
-  return {
-    isExisting: false,
-    data: fullRecord,
-  };
+  },
 };
 
 /**
- * Create a new problem identification manually or from frontend wizard
+ * Generate sequential problem identification code: PRI-YYYY-XXX
+ */
+const generateProblemIdentificationCode = async (year = new Date().getFullYear()) => {
+  const prefix = `PRI-${year}-`;
+  const latest = await prisma.problemIdentification.findFirst({
+    where: {
+      code: { startsWith: prefix },
+    },
+    orderBy: { code: 'desc' },
+    select: { code: true },
+  });
+
+  if (!latest) {
+    return `${prefix}001`;
+  }
+
+  const sequence = parseInt(latest.code.replace(prefix, ''), 10) + 1;
+  return `${prefix}${String(sequence).padStart(3, '0')}`;
+};
+
+/**
+ * Normalize priority string to ProposalPriority enum
+ */
+const normalizePriority = (val) => {
+  if (!val) return 'MEDIUM';
+  const u = String(val).toUpperCase();
+  if (u === 'TINGGI' || u === 'HIGH') return 'HIGH';
+  if (u === 'RENDAH' || u === 'LOW') return 'LOW';
+  if (u === 'STRATEGIS' || u === 'STRATEGIC') return 'STRATEGIC';
+  return 'MEDIUM';
+};
+
+/**
+ * Normalize status string to ProblemIdentificationStatus enum
+ */
+const normalizeStatus = (val) => {
+  if (!val) return 'DRAFT';
+  const u = String(val).toUpperCase();
+  if (u === 'DITETAPKAN' || u === 'APPROVED' || u === 'VALIDATED') return 'APPROVED';
+  if (u === 'DITOLAK' || u === 'REJECTED') return 'REJECTED';
+  if (u === 'DIANALISIS' || u === 'UNDER_REVIEW' || u === 'IN_REVIEW') return 'UNDER_REVIEW';
+  return 'DRAFT';
+};
+
+/**
+ * Create a new Problem Identification manually by BRIDA (MVP Tanpa AI)
  */
 const createProblemIdentification = async (data, userId) => {
-  const code = data.code || `PID-${Date.now().toString().slice(-8)}`;
+  const year = data.year ? parseInt(data.year, 10) : new Date().getFullYear();
+  const code = data.code || (await generateProblemIdentificationCode(year));
 
-  let sourceVersionId = data.sourceVersionId || null;
-  if (!sourceVersionId && data.sourceId) {
-    const src = await prisma.externalSource.findUnique({
-      where: { id: data.sourceId },
-      select: { currentVersionId: true },
+  // Resolve OPD
+  let resolvedOpdId = data.opdId || null;
+  if (!resolvedOpdId && (data.opd || data.opdName)) {
+    const targetName = data.opd || data.opdName;
+    const foundOpd = await prisma.oPD.findFirst({
+      where: {
+        OR: [
+          { id: targetName },
+          { code: targetName },
+          { name: { contains: targetName, mode: 'insensitive' } },
+          { shortName: { contains: targetName, mode: 'insensitive' } },
+        ],
+      },
     });
-    sourceVersionId = src?.currentVersionId || null;
+    if (foundOpd) {
+      resolvedOpdId = foundOpd.id;
+    }
   }
-  if (!sourceVersionId) {
-    const firstActiveVersion = await prisma.externalSourceVersion.findFirst({
-      where: { externalSource: { status: 'ACTIVE' } },
-      orderBy: { createdAt: 'desc' },
+
+  // If still no OPD, default to first active OPD in database
+  if (!resolvedOpdId) {
+    const firstOpd = await prisma.oPD.findFirst({
+      where: { isActive: true },
       select: { id: true },
     });
-    sourceVersionId = firstActiveVersion?.id || null;
+    resolvedOpdId = firstOpd?.id || null;
   }
+
+  // Resolve baseline source version if provided
+  let resolvedSourceVersionId = data.sourceVersionId || data.baselineId || data.sourceId || null;
+  if (resolvedSourceVersionId) {
+    const src = await prisma.externalSource.findFirst({
+      where: {
+        OR: [{ id: resolvedSourceVersionId }, { code: resolvedSourceVersionId }],
+      },
+      select: { currentVersionId: true },
+    });
+    if (src && src.currentVersionId) {
+      resolvedSourceVersionId = src.currentVersionId;
+    }
+  }
+
+  const priority = normalizePriority(data.priority);
+  const status = normalizeStatus(data.status);
+  const field = data.field || data.category || 'Tata Kelola';
+  const bridaFindings = data.bridaFindings || data.findingsText || null;
+  const currentCondition = data.currentCondition || null;
+  const problemStatement = data.problemStatement || data.description || null;
+  const impact = data.impact || null;
+  const potentialNeed = data.potentialNeed || null;
+  const baselineRelationship = data.baselineRelationship || null;
+  const analysisNotes = data.analysisNotes || data.bridaNotes || null;
 
   const createdRecord = await prisma.$transaction(async (tx) => {
     const item = await tx.problemIdentification.create({
       data: {
         code,
-        title: data.title || 'Identifikasi Kebutuhan Riset OPD',
-        description: data.description || 'Hasil analisis kebutuhan riset daerah berbasis baseline dokumen.',
-        status: data.status || 'AI_GENERATED',
-        sourceVersionId,
+        title: data.title,
+        year,
+        field,
+        bridaFindings,
+        currentCondition,
+        problemStatement,
+        impact,
+        potentialNeed,
+        priority,
+        status,
+        description: problemStatement || data.description || data.title,
+        sourceVersionId: resolvedSourceVersionId,
+        baselineRelationship,
+        analysisNotes,
+        opdId: resolvedOpdId,
         createdById: userId,
       },
     });
 
-    // Create findings if provided
-    if (Array.isArray(data.findings) && data.findings.length > 0) {
-      for (const finding of data.findings) {
-        await tx.problemIdentificationFinding.create({
-          data: {
-            problemIdentificationId: item.id,
-            title: finding.title || finding.primaryIssue || 'Temuan Permasalahan Riset',
-            description: finding.description || finding.problemDescription || '',
-            evidence: finding.evidence || finding.potentialNeed || null,
-            confidence: typeof finding.confidence === 'number' ? finding.confidence : 0.88,
-            sourceReference: finding.sourceReference || null,
-          },
-        });
-      }
-    } else if (data.primaryIssue || data.problemDescription || data.potentialNeed) {
-      await tx.problemIdentificationFinding.create({
+    // Link related OPD in pivot table
+    if (resolvedOpdId) {
+      await tx.problemIdentificationOpd.create({
         data: {
           problemIdentificationId: item.id,
-          title: data.primaryIssue || data.title,
-          description: data.problemDescription || data.description,
-          evidence: data.potentialNeed || null,
-          confidence: 0.9,
-          sourceReference: 'Dokumen Baseline SIM-RIDA',
+          opdId: resolvedOpdId,
+          relevanceScore: 0.95,
+          reason: 'OPD Pengusul / Target Identifikasi Kebutuhan',
         },
       });
     }
 
-    // Connect related OPD if provided
-    if (Array.isArray(data.relatedOpds) && data.relatedOpds.length > 0) {
-      for (const ro of data.relatedOpds) {
-        if (ro.opdId) {
-          await tx.problemIdentificationOpd.create({
-            data: {
-              problemIdentificationId: item.id,
-              opdId: ro.opdId,
-              relevanceScore: typeof ro.relevanceScore === 'number' ? ro.relevanceScore : 0.9,
-              reason: ro.reason || null,
-            },
-          });
-        }
-      }
-    } else if (data.opdId) {
-      await tx.problemIdentificationOpd.create({
+    // Save findings structured item
+    if (bridaFindings || problemStatement || potentialNeed) {
+      await tx.problemIdentificationFinding.create({
         data: {
           problemIdentificationId: item.id,
-          opdId: data.opdId,
-          relevanceScore: 0.95,
-          reason: `Target instansi: ${data.opdName || 'OPD'}`,
+          title: data.title,
+          description: bridaFindings || problemStatement || '',
+          evidence: potentialNeed || baselineRelationship || null,
+          confidence: 1.0,
+          sourceReference: 'Analisis Pemantauan BRIDA',
         },
       });
-    } else if (data.opdName || data.opd) {
-      const targetName = data.opdName || data.opd;
-      const opd = await tx.oPD.findFirst({
-        where: {
-          OR: [
-            { name: { contains: targetName, mode: 'insensitive' } },
-            { shortName: { contains: targetName, mode: 'insensitive' } },
-          ],
-        },
-      });
-      if (opd) {
-        await tx.problemIdentificationOpd.create({
-          data: {
-            problemIdentificationId: item.id,
-            opdId: opd.id,
-            relevanceScore: 0.95,
-            reason: `Target instansi: ${opd.name}`,
-          },
-        });
-      }
     }
 
     return tx.problemIdentification.findUnique({
@@ -352,19 +221,19 @@ const createProblemIdentification = async (data, userId) => {
     });
   });
 
-  logAudit({
+  await logAudit(
     userId,
-    action: 'PROBLEM_IDENTIFICATION_CREATED',
-    entity: 'ProblemIdentification',
-    entityId: createdRecord.id,
-    metadata: { code, title: createdRecord.title },
-  });
+    'PROBLEM_IDENTIFICATION_CREATED',
+    'ProblemIdentification',
+    createdRecord.id,
+    { code, title: createdRecord.title }
+  );
 
   return createdRecord;
 };
 
 /**
- * Get paginated list of problem identifications
+ * Get paginated & filtered list of problem identifications
  */
 const getProblemIdentifications = async (query = {}) => {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
@@ -373,36 +242,39 @@ const getProblemIdentifications = async (query = {}) => {
 
   const where = {};
 
-  if (query.status) {
-    where.status = query.status;
+  if (query.status && query.status !== 'ALL') {
+    where.status = normalizeStatus(query.status);
   }
 
-  if (query.sourceId) {
-    where.sourceVersion = {
-      externalSourceId: query.sourceId,
-    };
+  if (query.year) {
+    where.year = parseInt(query.year, 10);
+  }
+
+  if (query.priority && query.priority !== 'ALL') {
+    where.priority = normalizePriority(query.priority);
+  }
+
+  if (query.field && query.field !== 'ALL') {
+    where.field = query.field;
   }
 
   if (query.opdId) {
-    where.relatedOpds = {
-      some: {
-        opdId: query.opdId,
-      },
-    };
+    where.OR = [
+      { opdId: query.opdId },
+      { relatedOpds: { some: { opdId: query.opdId } } },
+    ];
   }
 
   if (query.search) {
     where.OR = [
       { code: { contains: query.search, mode: 'insensitive' } },
       { title: { contains: query.search, mode: 'insensitive' } },
-      { description: { contains: query.search, mode: 'insensitive' } },
-      {
-        sourceVersion: {
-          externalSource: {
-            title: { contains: query.search, mode: 'insensitive' },
-          },
-        },
-      },
+      { bridaFindings: { contains: query.search, mode: 'insensitive' } },
+      { problemStatement: { contains: query.search, mode: 'insensitive' } },
+      { potentialNeed: { contains: query.search, mode: 'insensitive' } },
+      { field: { contains: query.search, mode: 'insensitive' } },
+      { opd: { name: { contains: query.search, mode: 'insensitive' } } },
+      { relatedOpds: { some: { opd: { name: { contains: query.search, mode: 'insensitive' } } } } },
     ];
   }
 
@@ -427,16 +299,21 @@ const getProblemIdentifications = async (query = {}) => {
 };
 
 /**
- * Get problem identification by ID
+ * Get problem identification by ID or Code
  */
 const getProblemIdentificationById = async (id) => {
-  const record = await prisma.problemIdentification.findUnique({
-    where: { id },
+  const record = await prisma.problemIdentification.findFirst({
+    where: {
+      OR: [
+        { id },
+        { code: id },
+      ],
+    },
     include: problemIdentificationInclude,
   });
 
   if (!record) {
-    const error = new Error(`Problem identification with ID ${id} not found.`);
+    const error = new Error(`Identifikasi kebutuhan dengan ID ${id} tidak ditemukan.`);
     error.statusCode = 404;
     error.code = 'NOT_FOUND';
     throw error;
@@ -449,143 +326,193 @@ const getProblemIdentificationById = async (id) => {
  * Update problem identification (Edit by BRIDA)
  */
 const updateProblemIdentification = async (id, data, userId) => {
-  await getProblemIdentificationById(id);
+  const existing = await prisma.problemIdentification.findFirst({
+    where: {
+      OR: [{ id }, { code: id }],
+    },
+  });
+
+  if (!existing) {
+    const error = new Error(`Identifikasi kebutuhan dengan ID ${id} tidak ditemukan.`);
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const updateData = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.year !== undefined) updateData.year = parseInt(data.year, 10);
+  if (data.field !== undefined) updateData.field = data.field || data.category;
+  if (data.category !== undefined && !updateData.field) updateData.field = data.category;
+  if (data.bridaFindings !== undefined) updateData.bridaFindings = data.bridaFindings;
+  if (data.currentCondition !== undefined) updateData.currentCondition = data.currentCondition;
+  if (data.problemStatement !== undefined) {
+    updateData.problemStatement = data.problemStatement;
+    updateData.description = data.problemStatement;
+  }
+  if (data.impact !== undefined) updateData.impact = data.impact;
+  if (data.potentialNeed !== undefined) updateData.potentialNeed = data.potentialNeed;
+  if (data.priority !== undefined) updateData.priority = normalizePriority(data.priority);
+  if (data.status !== undefined) updateData.status = normalizeStatus(data.status);
+  if (data.baselineRelationship !== undefined) updateData.baselineRelationship = data.baselineRelationship;
+  if (data.analysisNotes !== undefined) updateData.analysisNotes = data.analysisNotes;
+  if (data.reviewNote !== undefined) updateData.reviewNote = data.reviewNote;
+
+  if (data.opdId !== undefined) {
+    updateData.opdId = data.opdId;
+  } else if (data.opd || data.opdName) {
+    const targetName = data.opd || data.opdName;
+    const foundOpd = await prisma.oPD.findFirst({
+      where: {
+        OR: [
+          { id: targetName },
+          { code: targetName },
+          { name: { contains: targetName, mode: 'insensitive' } },
+          { shortName: { contains: targetName, mode: 'insensitive' } },
+        ],
+      },
+    });
+    if (foundOpd) {
+      updateData.opdId = foundOpd.id;
+    }
+  }
+
+  if (data.sourceVersionId !== undefined) {
+    updateData.sourceVersionId = data.sourceVersionId;
+  }
 
   const updatedRecord = await prisma.$transaction(async (tx) => {
-    // 1. Update basic fields
-    const updateData = {};
-    if (typeof data.title !== 'undefined') updateData.title = data.title;
-    if (typeof data.description !== 'undefined') updateData.description = data.description;
-    if (updateData.title || updateData.description) {
-      await tx.problemIdentification.update({
-        where: { id },
-        data: updateData,
-      });
-    }
+    const updated = await tx.problemIdentification.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
 
-    // 2. Replace findings if array provided
-    if (Array.isArray(data.findings)) {
-      await tx.problemIdentificationFinding.deleteMany({
-        where: { problemIdentificationId: id },
-      });
-
-      for (const finding of data.findings) {
-        await tx.problemIdentificationFinding.create({
-          data: {
-            problemIdentificationId: id,
-            title: finding.title,
-            description: finding.description,
-            evidence: finding.evidence || null,
-            confidence: typeof finding.confidence === 'number' ? finding.confidence : 0.85,
-            sourceReference: finding.sourceReference || null,
-          },
-        });
-      }
-    }
-
-    // 3. Replace related OPDs if array provided
-    if (Array.isArray(data.relatedOpds)) {
+    if (updateData.opdId) {
       await tx.problemIdentificationOpd.deleteMany({
-        where: { problemIdentificationId: id },
+        where: { problemIdentificationId: existing.id },
       });
-
-      for (const item of data.relatedOpds) {
-        await tx.problemIdentificationOpd.create({
-          data: {
-            problemIdentificationId: id,
-            opdId: item.opdId,
-            relevanceScore: typeof item.relevanceScore === 'number' ? item.relevanceScore : 0.85,
-            reason: item.reason || null,
-          },
-        });
-      }
+      await tx.problemIdentificationOpd.create({
+        data: {
+          problemIdentificationId: existing.id,
+          opdId: updateData.opdId,
+          relevanceScore: 0.95,
+          reason: 'OPD Pengusul / Target Identifikasi Kebutuhan',
+        },
+      });
     }
 
     return tx.problemIdentification.findUnique({
-      where: { id },
+      where: { id: existing.id },
       include: problemIdentificationInclude,
     });
   });
 
-  logAudit({
+  await logAudit(
     userId,
-    action: 'PROBLEM_IDENTIFICATION_UPDATED',
-    entity: 'ProblemIdentification',
-    entityId: id,
-    metadata: { updatedBy: userId },
-  });
+    'PROBLEM_IDENTIFICATION_UPDATED',
+    'ProblemIdentification',
+    updatedRecord.id,
+    { code: updatedRecord.code, changes: Object.keys(updateData) }
+  );
 
   return updatedRecord;
 };
 
 /**
- * Approve problem identification by BRIDA
+ * Approve identification (Status -> APPROVED)
  */
-const approveProblemIdentification = async (id, userId) => {
-  const record = await getProblemIdentificationById(id);
+const approveIdentification = async (id, userId, reviewNote) => {
+  const existing = await getProblemIdentificationById(id);
 
   const updated = await prisma.problemIdentification.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
       status: 'APPROVED',
       reviewedById: userId,
       reviewedAt: new Date(),
+      reviewNote: reviewNote || existing.reviewNote || 'Identifikasi kebutuhan disetujui dan ditetapkan.',
     },
     include: problemIdentificationInclude,
   });
 
-  logAudit({
+  await logAudit(
     userId,
-    action: 'PROBLEM_IDENTIFICATION_APPROVED',
-    entity: 'ProblemIdentification',
-    entityId: id,
-    metadata: { previousStatus: record.status, newStatus: 'APPROVED' },
-  });
+    'PROBLEM_IDENTIFICATION_APPROVED',
+    'ProblemIdentification',
+    updated.id,
+    { code: updated.code, reviewNote }
+  );
 
   return updated;
 };
 
 /**
- * Reject problem identification by BRIDA (requires reviewNote)
+ * Reject identification (Status -> REJECTED)
  */
-const rejectProblemIdentification = async (id, reviewNote, userId) => {
-  const record = await getProblemIdentificationById(id);
-
-  if (!reviewNote || reviewNote.trim().length === 0) {
-    const error = new Error('Catatan alasan penolakan (reviewNote) wajib diisi.');
-    error.statusCode = 400;
-    error.code = 'REVIEW_NOTE_REQUIRED';
-    throw error;
-  }
+const rejectIdentification = async (id, userId, reviewNote) => {
+  const existing = await getProblemIdentificationById(id);
 
   const updated = await prisma.problemIdentification.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
       status: 'REJECTED',
       reviewedById: userId,
       reviewedAt: new Date(),
-      reviewNote,
+      reviewNote: reviewNote || 'Identifikasi kebutuhan ditolak.',
     },
     include: problemIdentificationInclude,
   });
 
-  logAudit({
+  await logAudit(
     userId,
-    action: 'PROBLEM_IDENTIFICATION_REJECTED',
-    entity: 'ProblemIdentification',
-    entityId: id,
-    metadata: { previousStatus: record.status, newStatus: 'REJECTED', reviewNote },
-  });
+    'PROBLEM_IDENTIFICATION_REJECTED',
+    'ProblemIdentification',
+    updated.id,
+    { code: updated.code, reviewNote }
+  );
 
   return updated;
 };
 
+/**
+ * Delete identification
+ */
+const deleteProblemIdentification = async (id, userId) => {
+  const existing = await getProblemIdentificationById(id);
+
+  // Check if already linked to proposals
+  const linkedProposals = await prisma.researchProposalProblem.count({
+    where: { problemIdentificationId: existing.id },
+  });
+
+  if (linkedProposals > 0) {
+    const error = new Error('Identifikasi kebutuhan tidak dapat dihapus karena sudah ditindaklanjuti ke usulan penelitian.');
+    error.statusCode = 400;
+    error.code = 'LINKED_TO_PROPOSAL';
+    throw error;
+  }
+
+  await prisma.problemIdentification.delete({
+    where: { id: existing.id },
+  });
+
+  await logAudit(
+    userId,
+    'PROBLEM_IDENTIFICATION_DELETED',
+    'ProblemIdentification',
+    existing.id,
+    { code: existing.code }
+  );
+
+  return { success: true, message: 'Identifikasi kebutuhan berhasil dihapus.' };
+};
+
 module.exports = {
-  analyzeSource,
   createProblemIdentification,
   getProblemIdentifications,
   getProblemIdentificationById,
   updateProblemIdentification,
-  approveProblemIdentification,
-  rejectProblemIdentification,
+  approveIdentification,
+  rejectIdentification,
+  deleteProblemIdentification,
 };

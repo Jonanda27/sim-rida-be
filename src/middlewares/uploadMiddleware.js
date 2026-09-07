@@ -29,13 +29,21 @@ const fileFilter = (req, file, cb) => {
     'image/jpg', 
     'application/pdf',
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'application/csv',
+    'application/octet-stream',
   ];
 
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv'];
+
+  if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(Object.assign(new Error('Invalid file type. Only JPG, PNG, PDF, and DOC are allowed.'), { statusCode: 400 }), false);
+    cb(Object.assign(new Error('Format berkas tidak didukung. Format yang diperbolehkan: Excel (.xlsx, .xls, .csv), PDF, Word (.doc, .docx), Gambar (.jpg, .png).'), { statusCode: 400 }), false);
   }
 };
 

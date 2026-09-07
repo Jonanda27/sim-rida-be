@@ -136,7 +136,8 @@ const formatKakResponse = (kak) => {
           selection: kak.researchProposal.selection || null,
         }
       : null,
-    budgetEstimates: kak.rab ? Number(kak.rab.totalAmount || 0) : 0,
+    budgetEstimate: kak.budgetEstimate !== null && kak.budgetEstimate !== undefined ? Number(kak.budgetEstimate) : 0,
+    budgetEstimates: kak.budgetEstimate !== null && kak.budgetEstimate !== undefined ? Number(kak.budgetEstimate) : 0,
     rab: kak.rab
       ? {
           id: kak.rab.id,
@@ -354,6 +355,11 @@ const createKak = async (data, userId) => {
       expectedOutcome: data.expectedOutcome || data.targetOutcome || data.benefit || proposal.expectedOutcome || null,
       successIndicator: data.successIndicator || data.indicators || null,
       deliverables: data.deliverables || data.personnel || data.target || null,
+      budgetEstimate: typeof data.budgetEstimate !== 'undefined'
+        ? parseFloat(data.budgetEstimate)
+        : typeof data.budgetEstimates !== 'undefined'
+        ? parseFloat(data.budgetEstimates)
+        : 0,
       estimatedStartDate: data.estimatedStartDate ? new Date(data.estimatedStartDate) : null,
       estimatedEndDate: data.estimatedEndDate ? new Date(data.estimatedEndDate) : null,
       createdById: userId,
@@ -470,6 +476,9 @@ const updateKak = async (id, data, userId) => {
   if (typeof data.deliverables !== 'undefined') updatePayload.deliverables = data.deliverables;
   else if (typeof data.personnel !== 'undefined') updatePayload.deliverables = data.personnel;
   else if (typeof data.target !== 'undefined') updatePayload.deliverables = data.target;
+
+  if (typeof data.budgetEstimate !== 'undefined') updatePayload.budgetEstimate = parseFloat(data.budgetEstimate);
+  else if (typeof data.budgetEstimates !== 'undefined') updatePayload.budgetEstimate = parseFloat(data.budgetEstimates);
 
   if (data.estimatedStartDate) updatePayload.estimatedStartDate = new Date(data.estimatedStartDate);
   if (data.estimatedEndDate) updatePayload.estimatedEndDate = new Date(data.estimatedEndDate);

@@ -5,6 +5,7 @@ const { seedSectors } = require('./seeders/sectorSeeder');
 const { seedResearchTypes } = require('./seeders/researchTypeSeeder');
 const { seedSelectionCriteria } = require('./seeders/selectionCriteriaSeeder');
 const { seedBaselineDocuments } = require('./seeders/baselineSeeder');
+const { seedProblemIdentifications } = require('./seeders/problemIdentificationSeeder');
 
 const prisma = new PrismaClient();
 
@@ -29,8 +30,11 @@ async function main() {
   // 6. Dokumen Baseline Resmi Kabupaten Mimika (Knowledge Base)
   await seedBaselineDocuments(prisma);
 
+  // 7. Identifikasi Kebutuhan OPD (Demo data MVP Tanpa AI)
+  await seedProblemIdentifications(prisma);
+
   console.log(`\n======================================================`);
-  console.log(`Seeding selesai: AKSES USER, MASTER DATA, & BASELINE MIMIKA.`);
+  console.log(`Seeding selesai: AKSES USER, MASTER DATA, BASELINE & IDENTIFIKASI KEBUTUHAN.`);
   console.log(`======================================================\n`);
 }
 

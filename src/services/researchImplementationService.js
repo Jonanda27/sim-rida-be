@@ -152,6 +152,12 @@ const getImplementations = async (query = {}) => {
         responsibleUser: {
           select: { id: true, name: true, email: true, role: true },
         },
+        documents: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            uploadedBy: { select: { id: true, name: true } },
+          },
+        },
         _count: {
           select: {
             timelines: true,
@@ -690,10 +696,27 @@ const completeImplementation = async (id, userId, customEndDate, notes) => {
   });
 
   if (!implementation) {
-    const error = new Error('Pelaksanaan penelitian tidak ditemukan.');
-    error.statusCode = 404;
-    error.code = 'IMPLEMENTATION_NOT_FOUND';
-    throw error;
+    // If not found directly, check if the ID corresponds to a ResearchProposal
+    const proposal = await prisma.researchProposal.findFirst({
+      where: {
+        OR: [{ id }, { code: id }],
+      },
+      include: { partnerSelection: true },
+    });
+
+    if (!proposal) {
+      const error = new Error('Pelaksanaan penelitian tidak ditemukan.');
+      error.statusCode = 404;
+      error.code = 'IMPLEMENTATION_NOT_FOUND';
+      throw error;
+    }
+
+    implementation = await createImplementation({
+      researchProposalId: proposal.id,
+      partnerSelectionId: proposal.partnerSelection?.id,
+      responsibleUserId: userId,
+      startDate: new Date(),
+    }, userId);
   }
 
   if (implementation.status === 'COMPLETED') {
