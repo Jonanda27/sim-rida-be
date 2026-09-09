@@ -43,9 +43,9 @@ Semua akun default menggunakan password: `password123`
 | :--- | :--- | :--- | :--- |
 | **`ADMIN_BRIDA`** | `admin@simrida.local` / `198503152010011002` | Admin Litbang BRIDA | BRIDA |
 | **`KEPALA_BRIDA`** | `kepala@simrida.local` / `197304121998031001` | Dr. H. Bambang Priyanto, M.Si | BRIDA |
-| **`OPD`** | `opd.bappeda@slemankab.go.id` / `198807202012012004` | Staf Litbang BAPPEDA | BAPPEDA |
-| **`OPD`** | `opd.dinkes@slemankab.go.id` / `199001152014022001` | Subbag Program Dinkes | Dinkes |
-| **`OPD`** | `opd.diskominfo@slemankab.go.id` / `199205102016031003` | Bidang E-Gov Diskominfo | Diskominfo |
+| **`OPD`** | `opd.bappeda@mimikakab.go.id` / `198807202012012004` | Staf Litbang BAPPEDA | BAPPEDA |
+| **`OPD`** | `opd.dinkes@mimikakab.go.id` / `199001152014022001` | Subbag Program Dinkes | Dinkes |
+| **`OPD`** | `opd.diskominfo@mimikakab.go.id` / `199205102016031003` | Bidang E-Gov Diskominfo | Diskominfo |
 
 ---
 

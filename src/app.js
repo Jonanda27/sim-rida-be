@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/error.middleware');
 const { errorResponse } = require('./utils/response.util');
@@ -9,15 +10,22 @@ const { errorResponse } = require('./utils/response.util');
 const app = express();
 
 // Security & Parsing Middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(
   cors({
     origin: '*',
     credentials: true,
   })
 );
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Static files for uploaded documents
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));

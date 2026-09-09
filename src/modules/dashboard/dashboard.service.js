@@ -164,23 +164,25 @@ class DashboardService {
       statusMap[item.status] = item._count.id;
     });
 
-    // 4. Data Geospasial (GIS) Riset Wilayah Sleman
+    // 4. Data Geospasial (GIS) Riset Wilayah Kabupaten Mimika (Papua Tengah)
     const gisLocations = [
       {
         id: 'gis-1',
-        title: 'Kawasan Desa Wisata Heritage Lereng Merapi',
-        kapanewon: 'Cangkringan & Pakem',
-        coordinates: [-7.6012, 110.4356],
+        title: 'Kajian Pengembangan Ekowisata Bahari dan Budaya Pesisir Mimika',
+        distrik: 'Distrik Mimika Timur & Distrik Jita',
+        kapanewon: 'Distrik Mimika Timur & Distrik Jita',
+        coordinates: [-4.7231, 136.9125],
         field: 'SOSIAL_BUDAYA',
         status: 'IN_PROGRESS',
-        leadAgency: 'Dinas Pariwisata',
+        leadAgency: 'Dinas Pariwisata, Kebudayaan, Pemuda dan Olahraga',
         allocatedBudget: 105000000,
       },
       {
         id: 'gis-2',
-        title: 'Intervensi Percepatan Penurunan Stunting Terpadu',
-        kapanewon: 'Tempel & Mlati',
-        coordinates: [-7.6891, 110.3287],
+        title: 'Intervensi Percepatan Penurunan Stunting & Pelayanan Gizi Terpadu',
+        distrik: 'Distrik Mimika Baru & Distrik Wania',
+        kapanewon: 'Distrik Mimika Baru & Distrik Wania',
+        coordinates: [-4.5421, 136.8872],
         field: 'SOSIAL_BUDAYA',
         status: 'SCORED',
         leadAgency: 'Dinas Kesehatan',
@@ -188,22 +190,24 @@ class DashboardService {
       },
       {
         id: 'gis-3',
-        title: 'Smart Water Management & Irigasi Modern Pertanian',
-        kapanewon: 'Berbah & Prambanan',
-        coordinates: [-7.7834, 110.4682],
+        title: 'Smart Water Management & Drainase Pertanian Dataran Rendah',
+        distrik: 'Distrik Kuala Kencana & Distrik Iwaka',
+        kapanewon: 'Distrik Kuala Kencana & Distrik Iwaka',
+        coordinates: [-4.4289, 136.8512],
         field: 'INOVASI_TEKNOLOGI',
         status: 'IN_REVIEW',
-        leadAgency: 'Dinas Pertanian, Pangan, dan Perikanan',
+        leadAgency: 'Dinas Pertanian, Tanaman Pangan & Perkebunan',
         allocatedBudget: 95000000,
       },
       {
         id: 'gis-4',
-        title: 'Pengentasan Kemiskinan Ekstrem Kawasan Perkotaan',
-        kapanewon: 'Depok & Gamping',
-        coordinates: [-7.7681, 110.3892],
+        title: 'Pemberdayaan Ekonomi Masyarakat Adat Amungme dan Kamoro',
+        distrik: 'Distrik Tembagapura & Distrik Kwamki Narama',
+        kapanewon: 'Distrik Tembagapura & Distrik Kwamki Narama',
+        coordinates: [-4.2612, 137.1145],
         field: 'EKONOMI_PEMBANGUNAN',
         status: 'SCORED',
-        leadAgency: 'BAPPEDA Sleman',
+        leadAgency: 'BAPPEDA Kab. Mimika',
         allocatedBudget: 120000000,
       },
     ];

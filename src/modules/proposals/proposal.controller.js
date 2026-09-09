@@ -76,6 +76,15 @@ class ProposalController {
       next(err);
     }
   }
+
+  async submitFollowUp(req, res, next) {
+    try {
+      const result = await proposalService.submitFollowUp(req.params.id, req.user, req.body);
+      return successResponse(res, 'Laporan pemanfaatan rekomendasi berhasil dikirim.', result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new ProposalController();

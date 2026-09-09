@@ -109,6 +109,13 @@ class ProposalService {
               },
             },
           },
+          followUp: {
+            include: {
+              submittedBy: {
+                select: { id: true, name: true, role: true },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -164,6 +171,16 @@ class ProposalService {
             },
           },
         },
+        followUp: {
+          include: {
+            submittedBy: {
+              select: { id: true, name: true, role: true },
+            },
+          },
+        },
+        scoring: true,
+        kepalaApproval: true,
+        researchStudy: true,
       },
     });
 
@@ -447,6 +464,55 @@ class ProposalService {
         proposal: updated,
       };
     }
+  }
+
+  /**
+   * Mengirimkan laporan tindak lanjut / pemanfaatan rekomendasi oleh OPD
+   */
+  async submitFollowUp(id, user, data) {
+    const proposal = await prisma.proposal.findUnique({
+      where: { id },
+      include: { opd: true },
+    });
+
+    if (!proposal) {
+      const error = new Error('Usulan riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (user.role === 'OPD' && proposal.opdId !== user.opdId) {
+      const error = new Error('Akses ditolak. Anda hanya dapat melaporkan tindak lanjut usulan instansi Anda.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const followUp = await prisma.proposalFollowUp.upsert({
+      where: { proposalId: id },
+      create: {
+        proposalId: id,
+        utilizationType: data.utilizationType,
+        utilizationSummary: data.utilizationSummary,
+        satisfactionRating: data.satisfactionRating,
+        feedbackNotes: data.feedbackNotes || null,
+        submittedById: user.id,
+      },
+      update: {
+        utilizationType: data.utilizationType,
+        utilizationSummary: data.utilizationSummary,
+        satisfactionRating: data.satisfactionRating,
+        feedbackNotes: data.feedbackNotes || null,
+        submittedById: user.id,
+        submittedAt: new Date(),
+      },
+      include: {
+        submittedBy: {
+          select: { id: true, name: true, role: true },
+        },
+      },
+    });
+
+    return followUp;
   }
 }
 

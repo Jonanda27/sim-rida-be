@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../../config/prisma');
 
 class UserService {
-  async getAllUsers({ search, role, opdId, isActive, page = 1, limit = 50 }) {
+  async getAllUsers({ search, role, opdId, isActive, page = 1, limit = 50 } = {}) {
     const where = {};
 
     if (role) {

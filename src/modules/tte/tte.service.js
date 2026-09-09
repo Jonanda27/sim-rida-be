@@ -355,7 +355,7 @@ class TteService {
         signerId: userFromDb.id,
         signerName: userFromDb.name,
         signerNip: userFromDb.nip,
-        signerRole: 'Kepala Badan Riset dan Inovasi Daerah (BRIDA) Kab. Sleman',
+        signerRole: 'Kepala Badan Riset dan Inovasi Daerah (BRIDA) Kab. Mimika',
         signatureHash,
         verificationUrl,
         status: 'VALID',
@@ -406,7 +406,7 @@ class TteService {
       signedAt: log.signedAt,
       status: log.status,
       notes: log.notes,
-      issuer: 'Badan Riset dan Inovasi Daerah (BRIDA) Kab. Sleman - SIM-RIDA Digital Authority',
+      issuer: 'Badan Riset dan Inovasi Daerah (BRIDA) Kab. Mimika - SIM-RIDA Digital Authority',
     };
   }
 }

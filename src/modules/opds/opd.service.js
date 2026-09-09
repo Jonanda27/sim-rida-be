@@ -1,7 +1,7 @@
 const prisma = require('../../config/prisma');
 
 class OpdService {
-  async getAllOpds({ search, isActive }) {
+  async getAllOpds({ search, isActive } = {}) {
     const where = {};
 
     if (isActive !== undefined) {

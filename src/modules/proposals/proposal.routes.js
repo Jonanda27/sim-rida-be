@@ -7,6 +7,7 @@ const {
   createProposalSchema,
   updateProposalSchema,
   verifyProposalSchema,
+  followUpProposalSchema,
 } = require('./proposal.validation');
 
 const router = Router();
@@ -26,6 +27,14 @@ router.post(
   authorize(['ADMIN_BRIDA']),
   validate(verifyProposalSchema),
   proposalController.verifyProposal
+);
+
+// Laporan Tindak Lanjut Pemanfaatan OPD
+router.post(
+  '/:id/follow-up',
+  authorize(['OPD', 'ADMIN_BRIDA']),
+  validate(followUpProposalSchema),
+  proposalController.submitFollowUp
 );
 
 // Route CRUD Usulan Umum (OPD & Admin BRIDA)

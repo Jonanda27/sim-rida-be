@@ -17,6 +17,7 @@ const documentItemSchema = z.object({
 
 const createProposalSchema = z.object({
   body: z.object({
+    opdId: z.string().uuid('ID OPD tidak valid.').optional(),
     title: z.string().min(5, 'Judul usulan penelitian minimal 5 karakter.'),
     category: z.string().min(3, 'Kategori bidang usulan wajib dipilih.'),
     problemStatement: z.string().min(10, 'Identifikasi masalah / latar belakang lapangan wajib diisi minimal 10 karakter.'),
@@ -61,8 +62,21 @@ const verifyProposalSchema = z.object({
   }),
 });
 
+const followUpProposalSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('ID usulan tidak valid.'),
+  }),
+  body: z.object({
+    utilizationType: z.string().min(3, 'Jenis pemanfaatan wajib dipilih.'),
+    utilizationSummary: z.string().min(10, 'Ringkasan implementasi / pemanfaatan minimal 10 karakter.'),
+    satisfactionRating: z.number().int().min(1).max(5).default(5),
+    feedbackNotes: z.string().optional().nullable(),
+  }),
+});
+
 module.exports = {
   createProposalSchema,
   updateProposalSchema,
   verifyProposalSchema,
+  followUpProposalSchema,
 };

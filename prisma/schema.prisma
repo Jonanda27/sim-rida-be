@@ -156,6 +156,7 @@ model User {
   createdRecommendations PolicyRecommendation[] @relation("UserCreatedRecommendations")
   signedRecommendations  PolicyRecommendation[] @relation("KepalaSignedRecommendations")
   digitalSignatures      DigitalSignatureLog[]  @relation("SignerDigitalSignatures")
+  followUps              ProposalFollowUp[]     @relation("UserFollowUps")
 
   @@map("users")
 }
@@ -188,6 +189,7 @@ model Proposal {
   scoring             ProposalScoring?
   kepalaApproval      KepalaApproval?
   researchStudy       ResearchStudy?
+  followUp            ProposalFollowUp?
 
   @@index([status])
   @@index([opdId])
@@ -362,7 +364,7 @@ model ResearchTeamMember {
 
   name        String
   role        String        // e.g. Ketua Tim Peneliti, Tenaga Ahli Utama, Peneliti Anggota, Surveyor
-  institution String        // e.g. BRIDA Sleman, Pusat Studi UGM, UNY
+  institution String        // e.g. BRIDA Mimika, Pusat Studi UGM, UNY
   phone       String?
   email       String?
   createdAt   DateTime      @default(now())
@@ -441,4 +443,21 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model ProposalFollowUp {
+  id                 String   @id @default(uuid())
+  proposalId         String   @unique
+  proposal           Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  utilizationType    String   // 'Rencana Kerja (Renja)' | 'Revisi / Pembuatan SOP' | 'Penyusunan Ranperda' | 'Implementasi Teknis'
+  utilizationSummary String   @db.Text
+  satisfactionRating Int      @default(5)
+  feedbackNotes      String?  @db.Text
+  submittedById      String
+  submittedBy        User     @relation("UserFollowUps", fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedAt        DateTime @default(now())
+
+  @@index([proposalId])
+  @@index([submittedById])
+  @@map("proposal_follow_ups")
 }

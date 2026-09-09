@@ -9,6 +9,7 @@ const studyRoutes = require('../modules/studies/study.routes');
 const recommendationRoutes = require('../modules/recommendations/recommendation.routes');
 const tteRoutes = require('../modules/tte/tte.routes');
 const dashboardRoutes = require('../modules/dashboard/dashboard.routes');
+const uploadRoutes = require('../modules/uploads/upload.routes');
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use('/studies', studyRoutes);
 router.use('/recommendations', recommendationRoutes);
 router.use('/tte', tteRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/uploads', uploadRoutes);
 
 module.exports = router;
