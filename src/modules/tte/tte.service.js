@@ -123,7 +123,7 @@ class TteService {
         submittedBy: kak.study?.createdBy?.name,
         submittedAt: kak.updatedAt,
         status: kak.status,
-        durationMonths: kak.durationMonths,
+        durationMonths: kak.study?.proposal?.estimatedDuration || 3,
       });
     });
 

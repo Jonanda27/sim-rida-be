@@ -6,22 +6,32 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Memulai proses seeding database SIM-RIDA Kab. Mimika (Papua Tengah)...');
 
-  // 1. Bersihkan data lama
-  await prisma.digitalSignatureLog.deleteMany();
-  await prisma.policyRecommendation.deleteMany();
-  await prisma.rkaItem.deleteMany();
-  await prisma.kakDocument.deleteMany();
-  await prisma.researchTeamMember.deleteMany();
-  await prisma.researchStudy.deleteMany();
-  await prisma.kepalaApproval.deleteMany();
-  await prisma.proposalScoring.deleteMany();
-  await prisma.adminVerification.deleteMany();
-  await prisma.proposalRevision.deleteMany();
-  await prisma.proposalDocument.deleteMany();
-  await prisma.proposal.deleteMany();
-  await prisma.auditLog.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.opd.deleteMany();
+  // 1. Bersihkan data lama dengan aman
+  const models = [
+    prisma.digitalSignatureLog,
+    prisma.policyRecommendation,
+    prisma.rkaItem,
+    prisma.kakDocument,
+    prisma.researchTeamMember,
+    prisma.researchStudy,
+    prisma.kepalaApproval,
+    prisma.proposalScoring,
+    prisma.adminVerification,
+    prisma.proposalRevision,
+    prisma.proposalDocument,
+    prisma.proposal,
+    prisma.auditLog,
+    prisma.user,
+    prisma.opd,
+  ];
+
+  for (const model of models) {
+    try {
+      await model.deleteMany();
+    } catch (err) {
+      // Abaikan jika tabel belum ada (pada reset pertama / database baru)
+    }
+  }
 
   console.log('🧹 Data tabel lama berhasil dibersihkan.');
 
@@ -258,6 +268,7 @@ async function main() {
       urgencyLevel: 'TINGGI',
       expectedOutput: 'REKOMENDASI_KEBIJAKAN',
       estimatedBudget: 85000000,
+      estimatedDuration: 4,
       status: 'PENDING',
       submittedAt: new Date('2026-09-01T08:30:00Z'),
       opdId: opdBappeda.id,
@@ -288,6 +299,7 @@ async function main() {
       urgencyLevel: 'SEDANG',
       expectedOutput: 'REKOMENDASI_KEBIJAKAN',
       estimatedBudget: 60000000,
+      estimatedDuration: 3,
       status: 'RETURNED',
       submittedAt: new Date('2026-09-02T10:00:00Z'),
       opdId: opdDinkes.id,
@@ -320,6 +332,7 @@ async function main() {
       urgencyLevel: 'TINGGI',
       expectedOutput: 'STUDI_KELAYAKAN',
       estimatedBudget: 95000000,
+      estimatedDuration: 5,
       status: 'IN_REVIEW',
       submittedAt: new Date('2026-08-28T09:15:00Z'),
       opdId: opdBappeda.id,
@@ -358,6 +371,7 @@ async function main() {
       urgencyLevel: 'SEDANG',
       expectedOutput: 'NASKAH_AKADEMIK',
       estimatedBudget: 50000000,
+      estimatedDuration: 3,
       status: 'DRAFT',
       opdId: opdDiskominfo.id,
       createdById: userDiskominfo.id,
@@ -375,6 +389,7 @@ async function main() {
       urgencyLevel: 'TINGGI',
       expectedOutput: 'REKOMENDASI_KEBIJAKAN',
       estimatedBudget: 90000000,
+      estimatedDuration: 4,
       status: 'SCORED',
       submittedAt: new Date('2026-08-20T08:00:00Z'),
       opdId: opdBappeda.id,
@@ -428,6 +443,7 @@ async function main() {
       urgencyLevel: 'TINGGI',
       expectedOutput: 'DOKUMEN_MASTERPLAN',
       estimatedBudget: 110000000,
+      estimatedDuration: 4,
       status: 'APPROVED',
       submittedAt: new Date('2026-08-10T09:00:00Z'),
       opdId: opdBappeda.id,
@@ -481,6 +497,35 @@ async function main() {
     },
   });
 
+  // Usulan Inisiatif Mandiri BRIDA (Analisis Strategis Masalah Daerah oleh Tim Litbang BRIDA)
+  const propBridaAnalysis = await prisma.proposal.create({
+    data: {
+      code: 'PROP-2026-BRIDA-001',
+      source: 'BRIDA_ANALYSIS',
+      title: 'Analisis Strategis Penguatan Ketahanan Pangan Lokal dan Rantai Pasok Beras Sagu di Wilayah Mimika Timur',
+      category: 'Ekonomi & Pembangunan',
+      problemStatement: 'Ketergantungan pasokan pangan beras dari luar wilayah Mimika mencapai 72%, padahal potensi lahan sagu dan pertanian lokal di Mimika Timur sangat melimpah namun terkendala pasca-panen dan tata niaga.',
+      urgencyReason: 'Menekan laju inflasi daerah dan meningkatkan cadangan pangan darurat daerah Kabupaten Mimika.',
+      strategicImpact: 'Menciptakan kemandirian pangan lokal 4 distrik, menstabilkan inflasi pangan komoditas pokok, serta memberdayakan 15 kelompok tani lokal.',
+      urgencyLevel: 'TINGGI',
+      expectedOutput: 'REKOMENDASI_KEBIJAKAN',
+      estimatedBudget: 120000000,
+      estimatedDuration: 4,
+      status: 'APPROVED',
+      submittedAt: new Date('2026-09-05T09:00:00Z'),
+      opdId: opdBappeda.id,
+      createdById: adminBrida.id,
+      supportingDocuments: {
+        create: [
+          {
+            name: 'Kajian_Awal_Rantai_Pasok_Pangan_Mimika_2026.pdf',
+            size: '2.5 MB',
+          },
+        ],
+      },
+    },
+  });
+
   // 6. Seed Kajian Riset Aktif (ResearchStudy)
   const study1 = await prisma.researchStudy.create({
     data: {
@@ -499,7 +544,6 @@ async function main() {
           objectives: 'Menyusun dokumen masterplan dan rekomendasi kebijakan standarisasi paket ekowisata budaya terpadu pesisir Kabupaten Mimika.',
           scopeAndMethodology: 'Survei komprehensif ke 12 kampung pesisir di Distrik Mimika Timur dan Mimika Barat, Focus Group Discussion (FGD) bersama Lembaga Musyawarah Adat, analisis daya dukung lingkungan pesisir, dan perumusan matriks kebijakan daerah.',
           targetOutput: 'Dokumen Masterplan Pengembangan Ekowisata Bahari dan Budaya Berkelanjutan & Draft Peraturan Bupati Mimika.',
-          durationMonths: 4,
           status: 'FINAL',
           finalizedAt: new Date('2026-08-25T10:00:00Z'),
         },
@@ -587,6 +631,7 @@ async function main() {
       urgencyLevel: 'TINGGI',
       expectedOutput: 'REKOMENDASI_KEBIJAKAN',
       estimatedBudget: 85000000,
+      estimatedDuration: 2,
       status: 'APPROVED',
       submittedAt: new Date('2026-07-05T08:30:00Z'),
       opdId: opdDinkes.id,
@@ -649,7 +694,6 @@ async function main() {
           objectives: 'Merumuskan standar formula PMT lokal dan SOP penanganan stunting terpadu bagi Puskesmas dan Posyandu.',
           scopeAndMethodology: 'Uji nilai gizi laboratorium, survei akseptabilitas rasa pada balita di 5 distrik, perumusan standar operasional prosedur.',
           targetOutput: 'Buku Pedoman Menu PMT Lokal & Draf Peraturan Bupati tentang Penanggulangan Stunting Terpadu.',
-          durationMonths: 2,
           status: 'FINAL',
           finalizedAt: new Date('2026-07-20T09:00:00Z'),
         },

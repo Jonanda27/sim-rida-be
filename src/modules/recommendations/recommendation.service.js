@@ -406,6 +406,41 @@ class RecommendationService {
 
     return { message: 'Draf rekomendasi kebijakan berhasil dihapus.' };
   }
+
+  /**
+   * Menghasilkan formulasi Policy Brief & Rekomendasi Kebijakan menggunakan AI
+   * dengan memadukan seluruh dokumen pendukung: Usulan OPD, Dokumen Lampiran, KAK, Tim Riset, Berkas Kerja, & Laporan Akhir
+   */
+  async generateAiPolicyBrief(studyId, customPrompt = '') {
+    const study = await prisma.researchStudy.findUnique({
+      where: { id: studyId },
+      include: {
+        proposal: {
+          include: {
+            opd: true,
+            supportingDocuments: true,
+            adminVerification: true,
+            scoring: true,
+            kepalaApproval: true,
+          },
+        },
+        kakDocument: true,
+        teamMembers: true,
+        workingDocuments: true,
+        rkaItems: true,
+      },
+    });
+
+    if (!study) {
+      const error = new Error('Agenda kajian riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const aiPolicyBriefService = require('./recommendation-ai.service');
+    const result = await aiPolicyBriefService.generatePolicyBriefDraft(study, customPrompt);
+    return result;
+  }
 }
 
 module.exports = new RecommendationService();

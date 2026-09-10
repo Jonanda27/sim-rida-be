@@ -26,7 +26,6 @@ const saveKakSchema = z.object({
     objectives: z.string().min(10, 'Maksud & tujuan kajian minimal 10 karakter.'),
     scopeAndMethodology: z.string().min(10, 'Ruang lingkup & metodologi riset minimal 10 karakter.'),
     targetOutput: z.string().min(5, 'Target luaran kajian minimal 5 karakter.'),
-    durationMonths: z.number().int().min(1).max(24).default(3),
     status: z.enum(['DRAFT', 'FINAL']).default('DRAFT'),
   }),
 });

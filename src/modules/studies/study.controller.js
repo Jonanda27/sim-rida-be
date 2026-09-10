@@ -30,9 +30,46 @@ class StudyController {
     }
   }
 
+  async generateKakAi(req, res, next) {
+    try {
+      const result = await studyService.generateKakAi(
+        req.params.proposalId,
+        req.body?.customPrompt || ''
+      );
+      return successResponse(
+        res,
+        'Draf KAK dan rincian pos belanja RKA berhasil digenerate oleh AI Assistant.',
+        result
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async initOrUpdateKakStudy(req, res, next) {
+    try {
+      const study = await studyService.initOrUpdateKakStudy(
+        req.params.proposalId,
+        req.user,
+        req.body
+      );
+      const isFinal = req.body?.status === 'FINAL';
+      return successResponse(
+        res,
+        isFinal
+          ? 'Dokumen KAK dan RKA berhasil difinalisasi.'
+          : 'Draf KAK dan RKA berhasil disimpan ke dalam sistem.',
+        study,
+        200
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async initializeStudy(req, res, next) {
     try {
-      const study = await studyService.initializeStudy(
+      const study = await studyService.initOrUpdateKakStudy(
         req.params.proposalId,
         req.user,
         req.body
@@ -90,6 +127,59 @@ class StudyController {
         res,
         'Susunan tim peneliti kajian berhasil disimpan.',
         team
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async saveCooperationDoc(req, res, next) {
+    try {
+      const study = await studyService.saveCooperationDoc(req.params.id, req.body);
+      return successResponse(
+        res,
+        'Dokumen kerja sama / SK Tim Peneliti berhasil disimpan.',
+        study
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async addWorkingDocument(req, res, next) {
+    try {
+      const doc = await studyService.addWorkingDocument(req.params.id, req.body);
+      return successResponse(
+        res,
+        'Dokumen kerja riset berhasil diunggah.',
+        doc,
+        201
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deleteWorkingDocument(req, res, next) {
+    try {
+      await studyService.deleteWorkingDocument(req.params.id, req.params.docId);
+      return successResponse(
+        res,
+        'Dokumen kerja riset berhasil dihapus.',
+        null
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async submitFinalReport(req, res, next) {
+    try {
+      const study = await studyService.submitFinalReport(req.params.id, req.body);
+      return successResponse(
+        res,
+        'Dokumen Laporan Akhir Riset berhasil diunggah. Riset resmi selesai (COMPLETED) dan siap diekstraksi ke Tahap 5 Rekomendasi Kebijakan!',
+        study
       );
     } catch (err) {
       next(err);

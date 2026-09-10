@@ -15,6 +15,11 @@ enum Role {
   OPD
 }
 
+enum ProposalSource {
+  BRIDA_ANALYSIS
+  OPD_PROPOSAL
+}
+
 enum ProposalStatus {
   DRAFT
   PENDING
@@ -44,6 +49,7 @@ enum ExpectedOutput {
 enum VerificationDecision {
   PASS
   RETURN
+  REJECT
 }
 
 enum ResearchField {
@@ -164,13 +170,16 @@ model User {
 model Proposal {
   id               String          @id @default(uuid())
   code             String          @unique
+  source           ProposalSource  @default(OPD_PROPOSAL)
   title            String
   category         String
   problemStatement String          @db.Text
   urgencyReason    String          @db.Text
+  strategicImpact  String?         @db.Text
   urgencyLevel     ProposalUrgency @default(TINGGI)
   expectedOutput   ExpectedOutput  @default(REKOMENDASI_KEBIJAKAN)
   estimatedBudget  Decimal?        @db.Decimal(18, 2)
+  estimatedDuration Int?           @default(3) // Estimasi durasi pelaksanaan dalam bulan (ditentukan saat identifikasi masalah)
   status           ProposalStatus  @default(DRAFT)
   submittedAt      DateTime?
 
@@ -192,6 +201,7 @@ model Proposal {
   followUp            ProposalFollowUp?
 
   @@index([status])
+  @@index([source])
   @@index([opdId])
   @@index([createdById])
   @@index([createdAt])
@@ -216,8 +226,13 @@ model AdminVerification {
   proposalId        String               @unique
   proposal          Proposal             @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
-  isProblemClear    Boolean              @default(true)
-  isUrgencyRelevant Boolean              @default(true)
+  // 5 Pilar Validasi Usulan Riset OPD oleh BRIDA
+  isProblemClear    Boolean              @default(true) // Pilar 1: Validasi Kejelasan Masalah
+  isNotDuplicated   Boolean              @default(true) // Pilar 2: Pemeriksaan Kebaruan (Belum pernah diteliti/diselesaikan sebelumnya)
+  isUrgencyRelevant Boolean              @default(true) // Pilar 3: Tingkat Urgensi
+  isStrategicAligned Boolean             @default(true) // Pilar 4: Keselarasan Strategis (Visi-Misi RPJMD)
+  isResearchFeasible Boolean             @default(true) // Pilar 5: Kelayakan Penelitian (Data, Anggaran, Metode)
+
   isBudgetFeasible  Boolean              @default(true)
   isDataAdequate    Boolean              @default(true)
   
@@ -306,6 +321,15 @@ model ResearchStudy {
   endDate         DateTime?
   status          StudyStatus     @default(PLANNING)
 
+  // Dokumen Kerja Sama & Legalitas
+  cooperationDocName String?
+  cooperationDocUrl  String?
+
+  // Dokumen Laporan Akhir Riset
+  finalReportName    String?
+  finalReportUrl     String?
+  finalReportSummary String?        @db.Text
+
   createdById     String
   createdBy       User            @relation("UserCreatedStudies", fields: [createdById], references: [id], onDelete: Cascade)
 
@@ -315,11 +339,26 @@ model ResearchStudy {
   kakDocument           KakDocument?
   rkaItems              RkaItem[]
   teamMembers           ResearchTeamMember[]
+  workingDocuments      ResearchWorkingDocument[]
   policyRecommendations PolicyRecommendation[]
 
   @@index([status])
   @@index([fiscalYear])
   @@map("research_studies")
+}
+
+model ResearchWorkingDocument {
+  id          String        @id @default(uuid())
+  studyId     String
+  study       ResearchStudy @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  title       String
+  type        String        // e.g. Data Mentah / Tabulasi, Transkrip FGD / Wawancara, Laporan Antara
+  fileUrl     String?
+  fileSize    String?
+  uploadDate  DateTime      @default(now())
+
+  @@index([studyId])
+  @@map("research_working_documents")
 }
 
 model KakDocument {
@@ -331,7 +370,6 @@ model KakDocument {
   objectives          String         @db.Text
   scopeAndMethodology String         @db.Text
   targetOutput        String         @db.Text
-  durationMonths      Int            @default(3)
   
   status              DocumentStatus @default(DRAFT)
   finalizedAt         DateTime?

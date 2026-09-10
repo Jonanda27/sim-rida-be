@@ -58,6 +58,13 @@ router.post(
   recommendationController.finalizeRecommendation
 );
 
+// Generate Policy Brief & Rekomendasi Kebijakan menggunakan AI (khusus Admin BRIDA)
+router.post(
+  '/generate-ai/:studyId',
+  authorize(['ADMIN_BRIDA']),
+  recommendationController.generateAiPolicyBrief
+);
+
 // Hapus draf rekomendasi (khusus Admin BRIDA)
 router.delete(
   '/:id',

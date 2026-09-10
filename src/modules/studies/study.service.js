@@ -1,4 +1,5 @@
 const prisma = require('../../config/prisma');
+const aiKakService = require('./ai.service');
 
 class StudyService {
   /**
@@ -50,6 +51,7 @@ class StudyService {
               title: true,
               category: true,
               status: true,
+              source: true,
               opd: {
                 select: {
                   id: true,
@@ -63,7 +65,6 @@ class StudyService {
             select: {
               id: true,
               status: true,
-              durationMonths: true,
               finalizedAt: true,
             },
           },
@@ -82,6 +83,7 @@ class StudyService {
               institution: true,
             },
           },
+          workingDocuments: true,
         },
       }),
     ]);
@@ -98,6 +100,7 @@ class StudyService {
         teamCount: study.teamMembers.length,
         hasKak: !!study.kakDocument,
         kakStatus: study.kakDocument?.status || 'NOT_STARTED',
+        kakFinalizedAt: study.kakDocument?.finalizedAt || null,
       };
     });
 
@@ -113,19 +116,27 @@ class StudyService {
   }
 
   /**
-   * Mengambil daftar usulan berstatus APPROVED yang siap diinisiasi menjadi kajian
+   * Mengambil daftar seluruh usulan yang berstatus APPROVED (siap untuk disusun KAK)
    */
   async getApprovedProposals(query = {}) {
-    const { search } = query;
+    const { search, opdId, source } = query;
     const where = {
-      status: 'APPROVED',
-      researchStudy: null, // Belum diinisiasi
+      status: { in: ['APPROVED', 'IN_PROGRESS'] },
     };
+
+    if (opdId) {
+      where.opdId = opdId;
+    }
+
+    if (source) {
+      where.source = source;
+    }
 
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { code: { contains: search, mode: 'insensitive' } },
+        { problemStatement: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -134,15 +145,11 @@ class StudyService {
       orderBy: { updatedAt: 'desc' },
       include: {
         opd: true,
-        scoring: true,
-        kepalaApproval: {
+        adminVerification: true,
+        researchStudy: {
           include: {
-            approvedBy: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+            kakDocument: true,
+            rkaItems: true,
           },
         },
       },
@@ -152,88 +159,140 @@ class StudyService {
   }
 
   /**
-   * Menginisiasi usulan APPROVED menjadi Kajian Riset Aktif (ResearchStudy)
+   * AI Assistant: Generate draf KAK & RKA komprehensif dari data usulan
    */
-  async initializeStudy(proposalId, adminUser, data = {}) {
-    const proposal = await prisma.proposal.findUnique({
-      where: { id: proposalId },
-      include: {
-        kepalaApproval: true,
-        scoring: true,
-        researchStudy: true,
-      },
-    });
+  async generateKakAi(proposalId, customPrompt = '') {
+    try {
+      console.log(`[AI KAK] Memulai generate KAK untuk Proposal ID: ${proposalId}`);
+      let proposal = await prisma.proposal.findUnique({
+        where: { id: proposalId },
+        include: { opd: true },
+      });
 
-    if (!proposal) {
-      const error = new Error('Usulan riset tidak ditemukan.');
-      error.statusCode = 404;
-      throw error;
+      if (!proposal) {
+        // Coba cari tanpa include jika gagal relasi
+        proposal = await prisma.proposal.findUnique({
+          where: { id: proposalId },
+        });
+      }
+
+      if (!proposal) {
+        const error = new Error('Usulan riset tidak ditemukan di database.');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      console.log(`[AI KAK] Berhasil membaca usulan: [${proposal.code}] ${proposal.title}`);
+      const aiResult = await aiKakService.generateKakDraft(proposal, customPrompt);
+      console.log(`[AI KAK] Berhasil merumuskan draf KAK & RKA untuk: ${proposal.code}`);
+      return aiResult;
+    } catch (err) {
+      console.error(`[AI KAK Error] Gagal generate KAK untuk Proposal ID ${proposalId}:`, err);
+      throw err;
     }
+  }
 
-    if (proposal.status !== 'APPROVED') {
-      const error = new Error(
-        `Hanya usulan yang telah disetujui Kepala BRIDA (status: APPROVED) yang dapat diinisiasi menjadi kajian riset (Status saat ini: ${proposal.status}).`
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    if (proposal.researchStudy) {
-      const error = new Error('Usulan ini telah diinisiasi menjadi kajian riset sebelumnya.');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const allocatedBudget =
-      proposal.kepalaApproval?.approvedBudget || proposal.estimatedBudget || 0;
-    const fiscalYear =
-      proposal.kepalaApproval?.fiscalYear || new Date().getFullYear();
-    const executionScheme =
-      proposal.kepalaApproval?.finalExecutionScheme ||
-      proposal.scoring?.executionScheme ||
-      'SWAKELOLA';
-
-    // Buat ResearchStudy dan default draf KAK awal
-    const study = await prisma.researchStudy.create({
-      data: {
-        proposalId,
-        title: proposal.title,
-        fiscalYear,
-        allocatedBudget,
-        executionScheme,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        endDate: data.endDate ? new Date(data.endDate) : null,
-        status: 'PLANNING',
-        createdById: adminUser.id,
-        kakDocument: {
-          create: {
-            background: proposal.problemStatement + '\n\nUrgensi: ' + proposal.urgencyReason,
-            objectives: `Mengkaji dan merumuskan solusi atas permasalahan: ${proposal.title}`,
-            scopeAndMethodology: 'Survei data lapangan, Focus Group Discussion (FGD), analisis dokumen kebijakan, dan penyusunan rekomendasi akhir.',
-            targetOutput: `Dokumen ${proposal.expectedOutput.replace(/_/g, ' ')} & Rekomendasi Kebijakan untuk Perangkat Daerah.`,
-            durationMonths: 3,
-            status: 'DRAFT',
+  /**
+   * Menyimpan / Memperbarui KAK dan RKA terpadu untuk suatu usulan (In-System Live Editor)
+   */
+  async initOrUpdateKakStudy(proposalId, adminUser, data = {}) {
+    try {
+      console.log(`[KAK Editor] Menyimpan data KAK & RKA untuk Proposal ID: ${proposalId}, Status: ${data.status || 'DRAFT'}`);
+      const proposal = await prisma.proposal.findUnique({
+        where: { id: proposalId },
+        include: {
+          researchStudy: {
+            include: {
+              kakDocument: true,
+              rkaItems: true,
+            },
           },
         },
-      },
-      include: {
-        proposal: {
-          include: { opd: true },
+      });
+
+      if (!proposal) {
+        const error = new Error('Usulan riset tidak ditemukan.');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const fiscalYear = Number(data.fiscalYear) || new Date().getFullYear();
+      let study = proposal.researchStudy;
+      const allocatedBudget = study?.allocatedBudget ? Number(study.allocatedBudget) : Number(proposal.estimatedBudget || 100000000);
+      const executionScheme = study?.executionScheme || data.executionScheme || 'SWAKELOLA';
+      const isFinal = data.status === 'FINAL';
+
+    // 1. Upsert ResearchStudy
+    if (!study) {
+      study = await prisma.researchStudy.create({
+        data: {
+          proposalId,
+          title: proposal.title,
+          fiscalYear,
+          allocatedBudget,
+          executionScheme,
+          status: 'PLANNING',
+          createdById: adminUser.id,
         },
-        kakDocument: true,
-        rkaItems: true,
-        teamMembers: true,
+      });
+    } else {
+      study = await prisma.researchStudy.update({
+        where: { id: study.id },
+        data: {
+          title: proposal.title,
+          fiscalYear,
+          allocatedBudget,
+          executionScheme,
+        },
+      });
+    }
+
+    // 2. Upsert KakDocument
+    await prisma.kakDocument.upsert({
+      where: { studyId: study.id },
+      create: {
+        studyId: study.id,
+        background: data.background ? data.background.trim() : '',
+        objectives: data.objectives ? data.objectives.trim() : '',
+        scopeAndMethodology: data.scopeAndMethodology ? data.scopeAndMethodology.trim() : '',
+        targetOutput: data.targetOutput ? data.targetOutput.trim() : '',
+        status: isFinal ? 'FINAL' : (data.status || 'DRAFT'),
+        finalizedAt: isFinal ? new Date() : null,
+      },
+      update: {
+        background: data.background !== undefined ? data.background.trim() : undefined,
+        objectives: data.objectives !== undefined ? data.objectives.trim() : undefined,
+        scopeAndMethodology: data.scopeAndMethodology !== undefined ? data.scopeAndMethodology.trim() : undefined,
+        targetOutput: data.targetOutput !== undefined ? data.targetOutput.trim() : undefined,
+        status: isFinal ? 'FINAL' : (data.status || 'DRAFT'),
+        finalizedAt: isFinal ? new Date() : undefined,
       },
     });
 
-    // Update status usulan menjadi IN_PROGRESS
-    await prisma.proposal.update({
-      where: { id: proposalId },
-      data: { status: 'IN_PROGRESS' },
-    });
+    // 3. Simpan RKA Items jika dikirimkan
+    if (data.rkaItems && Array.isArray(data.rkaItems)) {
+      const formattedItems = data.rkaItems.map((item) => ({
+        studyId: study.id,
+        category: item.category ? item.category.trim() : 'Belanja Operasional',
+        description: item.description ? item.description.trim() : '',
+        volume: Number(item.volume) || 1,
+        unit: item.unit ? item.unit.trim() : 'Paket',
+        unitPrice: Number(item.unitPrice) || 0,
+        totalPrice: (Number(item.volume) || 1) * (Number(item.unitPrice) || 0),
+      }));
 
-    return study;
+      await prisma.$transaction([
+        prisma.rkaItem.deleteMany({ where: { studyId: study.id } }),
+        prisma.rkaItem.createMany({ data: formattedItems }),
+      ]);
+    }
+
+    return await this.getStudyById(study.id);
+  } catch (err) {
+    console.error(`[KAK Editor Error] Gagal menyimpan KAK & RKA untuk Proposal ID ${proposalId}:`, err);
+    throw err;
   }
+}
 
   /**
    * Mengambil detail lengkap kajian riset (KAK, RKA, Tim Peneliti, Usulan)
@@ -273,6 +332,9 @@ class StudyService {
         },
         teamMembers: {
           orderBy: { createdAt: 'asc' },
+        },
+        workingDocuments: {
+          orderBy: { uploadDate: 'desc' },
         },
       },
     });
@@ -322,7 +384,6 @@ class StudyService {
         objectives: data.objectives.trim(),
         scopeAndMethodology: data.scopeAndMethodology.trim(),
         targetOutput: data.targetOutput.trim(),
-        durationMonths: data.durationMonths || 3,
         status: data.status || 'DRAFT',
         finalizedAt: isFinal ? new Date() : null,
       },
@@ -331,7 +392,6 @@ class StudyService {
         objectives: data.objectives.trim(),
         scopeAndMethodology: data.scopeAndMethodology.trim(),
         targetOutput: data.targetOutput.trim(),
-        durationMonths: data.durationMonths || 3,
         status: data.status || 'DRAFT',
         finalizedAt: isFinal ? new Date() : null,
       },
@@ -432,6 +492,126 @@ class StudyService {
     });
 
     return updatedMembers;
+  }
+
+  /**
+   * Menyimpan / memperbarui dokumen kerja sama / SK Tim Peneliti (Tahap 4)
+   */
+  async saveCooperationDoc(studyId, { cooperationDocName, cooperationDocUrl, docName, fileUrl, executionScheme }) {
+    const study = await prisma.researchStudy.findUnique({
+      where: { id: studyId },
+    });
+
+    if (!study) {
+      const error = new Error('Kajian riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const nameToSave = cooperationDocName || docName;
+    const urlToSave = cooperationDocUrl !== undefined ? cooperationDocUrl : fileUrl;
+
+    const dataToUpdate = {
+      status: study.status === 'PLANNING' ? 'IN_PROGRESS' : study.status,
+    };
+    if (nameToSave) dataToUpdate.cooperationDocName = nameToSave.trim();
+    if (urlToSave !== undefined) dataToUpdate.cooperationDocUrl = urlToSave;
+    if (executionScheme) dataToUpdate.executionScheme = executionScheme;
+
+    await prisma.researchStudy.update({
+      where: { id: studyId },
+      data: dataToUpdate,
+    });
+
+    // Update proposal status to IN_PROGRESS if still APPROVED
+    await prisma.proposal.updateMany({
+      where: { id: study.proposalId, status: 'APPROVED' },
+      data: { status: 'IN_PROGRESS' },
+    });
+
+    return await this.getStudyById(studyId);
+  }
+
+  /**
+   * Menambahkan dokumen kerja lapangan / laporan antara (Tahap 4)
+   */
+  async addWorkingDocument(studyId, { title, type, fileUrl, fileSize }) {
+    const study = await prisma.researchStudy.findUnique({
+      where: { id: studyId },
+    });
+
+    if (!study) {
+      const error = new Error('Kajian riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const doc = await prisma.researchWorkingDocument.create({
+      data: {
+        studyId,
+        title: title?.trim() || 'Dokumen Kerja Riset',
+        type: type?.trim() || 'Laporan Antara',
+        fileUrl: fileUrl || null,
+        fileSize: fileSize || '1.5 MB',
+      },
+    });
+
+    return doc;
+  }
+
+  /**
+   * Menghapus dokumen kerja lapangan (Tahap 4)
+   */
+  async deleteWorkingDocument(studyId, docId) {
+    const doc = await prisma.researchWorkingDocument.findFirst({
+      where: { id: docId, studyId },
+    });
+
+    if (!doc) {
+      const error = new Error('Dokumen kerja riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await prisma.researchWorkingDocument.delete({
+      where: { id: docId },
+    });
+
+    return true;
+  }
+
+  /**
+   * Mengunggah Laporan Akhir Riset & Menandai Riset Selesai (Tahap 4 -> Siap Tahap 5)
+   */
+  async submitFinalReport(studyId, { reportName, reportUrl, summary }) {
+    const study = await prisma.researchStudy.findUnique({
+      where: { id: studyId },
+    });
+
+    if (!study) {
+      const error = new Error('Kajian riset tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const updated = await prisma.researchStudy.update({
+      where: { id: studyId },
+      data: {
+        finalReportName: reportName?.trim() || 'Laporan_Akhir_Riset.pdf',
+        finalReportUrl: reportUrl || null,
+        finalReportSummary: summary?.trim() || 'Laporan akhir hasil riset telah rampung dan siap diekstraksi ke draf rekomendasi kebijakan.',
+        status: 'COMPLETED',
+        endDate: new Date(),
+      },
+    });
+
+    // Update status proposal menjadi COMPLETED
+    await prisma.proposal.update({
+      where: { id: study.proposalId },
+      data: { status: 'COMPLETED' },
+    });
+
+    return await this.getStudyById(studyId);
   }
 
   /**

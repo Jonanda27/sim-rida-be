@@ -108,7 +108,24 @@ class RecommendationController {
   async deleteRecommendation(req, res, next) {
     try {
       const result = await recommendationService.deleteRecommendation(req.params.id);
-      return successResponse(res, result.message);
+      return successResponse(res, result.message, null);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async generateAiPolicyBrief(req, res, next) {
+    try {
+      const { customPrompt } = req.body || {};
+      const result = await recommendationService.generateAiPolicyBrief(
+        req.params.studyId,
+        customPrompt
+      );
+      return successResponse(
+        res,
+        'Draf formulasi Policy Brief & Rekomendasi Kebijakan berhasil dirumuskan oleh AI.',
+        result
+      );
     } catch (err) {
       next(err);
     }

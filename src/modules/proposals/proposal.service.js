@@ -22,7 +22,7 @@ class ProposalService {
    * Mengambil daftar usulan berdasarkan role dan filter
    */
   async getAllProposals(user, query = {}) {
-    const { search, status, category, opdId, page = 1, limit = 50 } = query;
+    const { search, status, category, opdId, source, page = 1, limit = 50 } = query;
     const where = {};
 
     // Jika role OPD, otomatis hanya usulan OPD miliknya
@@ -33,6 +33,10 @@ class ProposalService {
       where.opdId = user.opdId;
     } else if (opdId) {
       where.opdId = opdId;
+    }
+
+    if (source) {
+      where.source = source;
     }
 
     if (status) {
@@ -48,6 +52,7 @@ class ProposalService {
         { title: { contains: search, mode: 'insensitive' } },
         { code: { contains: search, mode: 'insensitive' } },
         { problemStatement: { contains: search, mode: 'insensitive' } },
+        { strategicImpact: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -116,6 +121,12 @@ class ProposalService {
               },
             },
           },
+          researchStudy: {
+            include: {
+              kakDocument: true,
+              rkaItems: true,
+            },
+          },
         },
       }),
     ]);
@@ -180,7 +191,12 @@ class ProposalService {
         },
         scoring: true,
         kepalaApproval: true,
-        researchStudy: true,
+        researchStudy: {
+          include: {
+            kakDocument: true,
+            rkaItems: true,
+          },
+        },
       },
     });
 
@@ -201,7 +217,7 @@ class ProposalService {
   }
 
   /**
-   * Membuat usulan baru (bisa disimpan DRAFT atau langsung PENDING)
+   * Membuat usulan baru (bisa disimpan DRAFT, PENDING, atau jika BRIDA_ANALYSIS langsung APPROVED / siap KAK)
    */
   async createProposal(user, data) {
     if (user.role === 'OPD' && !user.opdId) {
@@ -212,25 +228,42 @@ class ProposalService {
 
     const targetOpdId = user.role === 'OPD' ? user.opdId : data.opdId || user.opdId;
     if (!targetOpdId) {
-      const error = new Error('Instansi OPD pemohon wajib disertakan.');
+      const error = new Error('Instansi OPD target/pemohon wajib disertakan.');
       error.statusCode = 400;
       throw error;
     }
 
+    // Tentukan sumber inisiasi: jika OPD maka pasti OPD_PROPOSAL, jika BRIDA bisa BRIDA_ANALYSIS
+    const source = user.role === 'OPD' ? 'OPD_PROPOSAL' : data.source || 'BRIDA_ANALYSIS';
+
     const code = await this.generateProposalCode();
-    const status = data.isDraft ? 'DRAFT' : 'PENDING';
+
+    // Logika Status:
+    // 1. Jika Draft -> DRAFT
+    // 2. Jika Bukan Draft dan dari BRIDA_ANALYSIS -> APPROVED (langsung siap KAK, by-pass tahap validasi)
+    // 3. Jika Bukan Draft dan dari OPD_PROPOSAL -> PENDING (masuk ke antrean Validasi BRIDA)
+    let status = 'PENDING';
+    if (data.isDraft) {
+      status = 'DRAFT';
+    } else if (source === 'BRIDA_ANALYSIS') {
+      status = 'APPROVED';
+    }
+
     const submittedAt = data.isDraft ? null : new Date();
 
     const proposal = await prisma.proposal.create({
       data: {
         code,
+        source,
         title: data.title.trim(),
         category: data.category.trim(),
         problemStatement: data.problemStatement.trim(),
-        urgencyReason: data.urgencyReason.trim(),
+        urgencyReason: data.urgencyReason ? data.urgencyReason.trim() : '',
+        strategicImpact: data.strategicImpact ? data.strategicImpact.trim() : null,
         urgencyLevel: data.urgencyLevel || 'TINGGI',
         expectedOutput: data.expectedOutput || 'REKOMENDASI_KEBIJAKAN',
-        estimatedBudget: data.estimatedBudget !== undefined ? data.estimatedBudget : null,
+        estimatedBudget: data.estimatedBudget !== undefined && data.estimatedBudget !== null && data.estimatedBudget !== '' ? data.estimatedBudget : null,
+        estimatedDuration: data.estimatedDuration !== undefined && data.estimatedDuration !== null && data.estimatedDuration !== '' ? Number(data.estimatedDuration) : 3,
         status,
         submittedAt,
         opdId: targetOpdId,
@@ -269,9 +302,11 @@ class ProposalService {
       ...(data.category && { category: data.category.trim() }),
       ...(data.problemStatement && { problemStatement: data.problemStatement.trim() }),
       ...(data.urgencyReason && { urgencyReason: data.urgencyReason.trim() }),
+      ...(data.strategicImpact !== undefined && { strategicImpact: data.strategicImpact ? data.strategicImpact.trim() : null }),
       ...(data.urgencyLevel && { urgencyLevel: data.urgencyLevel }),
       ...(data.expectedOutput && { expectedOutput: data.expectedOutput }),
       ...(data.estimatedBudget !== undefined && { estimatedBudget: data.estimatedBudget }),
+      ...(data.estimatedDuration !== undefined && { estimatedDuration: data.estimatedDuration ? Number(data.estimatedDuration) : 3 }),
     };
 
     // Jika ada update dokumen pendukung
@@ -345,15 +380,21 @@ class ProposalService {
   }
 
   /**
-   * GATEKEEPER: Inbox Usulan Masuk Menunggu Verifikasi (Khusus ADMIN_BRIDA)
+   * GATEKEEPER: Inbox Usulan Masuk Menunggu Verifikasi (Khusus Usulan OPD / OPD_PROPOSAL)
    */
   async getVerificationInbox(query = {}) {
-    return await this.getAllProposals({ role: 'ADMIN_BRIDA' }, { ...query, status: 'PENDING' });
+    return await this.getAllProposals(
+      { role: 'ADMIN_BRIDA' },
+      { ...query, source: 'OPD_PROPOSAL', status: query.status || 'PENDING' }
+    );
   }
 
   /**
-   * GATEKEEPER: Verifikasi & Validasi Berkas Usulan (Khusus ADMIN_BRIDA)
-   * decision: 'PASS' (Lolos ke Scoring) | 'RETURN' (Kembalikan ke OPD untuk revisi)
+   * GATEKEEPER: Verifikasi & Validasi 5 Pilar Usulan OPD (Khusus ADMIN_BRIDA)
+   * decision: 
+   *   - 'PASS' (Lolos Validasi -> Status APPROVED, Siap Masuk Tahap 3 KAK)
+   *   - 'RETURN' (Kembalikan ke OPD untuk revisi -> Status RETURNED)
+   *   - 'REJECT' (Tolak Usulan -> Status REJECTED)
    */
   async verifyProposal(id, adminUser, data) {
     const proposal = await prisma.proposal.findUnique({
@@ -368,41 +409,41 @@ class ProposalService {
     }
 
     if (proposal.status !== 'PENDING') {
-      const error = new Error(`Usulan ini tidak berada dalam status antrean verifikasi (Status: ${proposal.status}).`);
+      const error = new Error(`Usulan ini tidak berada dalam antrean validasi (Status saat ini: ${proposal.status}).`);
       error.statusCode = 400;
       throw error;
     }
 
+    const verificationPayload = {
+      isProblemClear: data.isProblemClear ?? true,
+      isNotDuplicated: data.isNotDuplicated ?? true,
+      isUrgencyRelevant: data.isUrgencyRelevant ?? true,
+      isStrategicAligned: data.isStrategicAligned ?? true,
+      isResearchFeasible: data.isResearchFeasible ?? true,
+      isBudgetFeasible: data.isBudgetFeasible ?? true,
+      isDataAdequate: data.isDataAdequate ?? true,
+      decision: data.decision,
+      verificationNotes: data.verificationNotes.trim(),
+      verifiedById: adminUser.id,
+      verifiedAt: new Date(),
+    };
+
     if (data.decision === 'PASS') {
-      // 1. Loloskan Administrasi -> Status menjadi IN_REVIEW
+      // 1. Loloskan Validasi -> Status langsung menjadi APPROVED (Siap KAK)
       await prisma.adminVerification.upsert({
         where: { proposalId: id },
         create: {
           proposalId: id,
-          isProblemClear: data.isProblemClear ?? true,
-          isUrgencyRelevant: data.isUrgencyRelevant ?? true,
-          isBudgetFeasible: data.isBudgetFeasible ?? true,
-          isDataAdequate: data.isDataAdequate ?? true,
-          decision: 'PASS',
-          verificationNotes: data.verificationNotes.trim(),
-          verifiedById: adminUser.id,
-          verifiedAt: new Date(),
+          ...verificationPayload,
         },
         update: {
-          isProblemClear: data.isProblemClear ?? true,
-          isUrgencyRelevant: data.isUrgencyRelevant ?? true,
-          isBudgetFeasible: data.isBudgetFeasible ?? true,
-          isDataAdequate: data.isDataAdequate ?? true,
-          decision: 'PASS',
-          verificationNotes: data.verificationNotes.trim(),
-          verifiedById: adminUser.id,
-          verifiedAt: new Date(),
+          ...verificationPayload,
         },
       });
 
       const updated = await prisma.proposal.update({
         where: { id },
-        data: { status: 'IN_REVIEW' },
+        data: { status: 'APPROVED' },
         include: {
           opd: true,
           adminVerification: true,
@@ -411,10 +452,10 @@ class ProposalService {
       });
 
       return {
-        message: 'Usulan dinyatakan Lolos Verifikasi Administrasi dan diteruskan ke tahap Penelaahan & Scoring.',
+        message: 'Usulan OPD dinyatakan Lolos Validasi BRIDA dan siap diteruskan ke Tahap 3 (Penyusunan KAK).',
         proposal: updated,
       };
-    } else {
+    } else if (data.decision === 'RETURN') {
       // 2. Kembalikan ke OPD -> Status menjadi RETURNED
       await prisma.proposalRevision.create({
         data: {
@@ -428,24 +469,10 @@ class ProposalService {
         where: { proposalId: id },
         create: {
           proposalId: id,
-          isProblemClear: data.isProblemClear ?? false,
-          isUrgencyRelevant: data.isUrgencyRelevant ?? false,
-          isBudgetFeasible: data.isBudgetFeasible ?? false,
-          isDataAdequate: data.isDataAdequate ?? false,
-          decision: 'RETURN',
-          verificationNotes: data.verificationNotes.trim(),
-          verifiedById: adminUser.id,
-          verifiedAt: new Date(),
+          ...verificationPayload,
         },
         update: {
-          isProblemClear: data.isProblemClear ?? false,
-          isUrgencyRelevant: data.isUrgencyRelevant ?? false,
-          isBudgetFeasible: data.isBudgetFeasible ?? false,
-          isDataAdequate: data.isDataAdequate ?? false,
-          decision: 'RETURN',
-          verificationNotes: data.verificationNotes.trim(),
-          verifiedById: adminUser.id,
-          verifiedAt: new Date(),
+          ...verificationPayload,
         },
       });
 
@@ -461,6 +488,33 @@ class ProposalService {
 
       return {
         message: 'Usulan berhasil dikembalikan ke OPD dengan catatan revisi perbaikan.',
+        proposal: updated,
+      };
+    } else {
+      // 3. Tolak Usulan -> Status menjadi REJECTED
+      await prisma.adminVerification.upsert({
+        where: { proposalId: id },
+        create: {
+          proposalId: id,
+          ...verificationPayload,
+        },
+        update: {
+          ...verificationPayload,
+        },
+      });
+
+      const updated = await prisma.proposal.update({
+        where: { id },
+        data: { status: 'REJECTED' },
+        include: {
+          opd: true,
+          adminVerification: true,
+          supportingDocuments: true,
+        },
+      });
+
+      return {
+        message: 'Usulan OPD telah ditolak dengan catatan alasan ketidaklayakan.',
         proposal: updated,
       };
     }
