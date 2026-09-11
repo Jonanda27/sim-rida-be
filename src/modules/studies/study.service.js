@@ -583,7 +583,16 @@ class StudyService {
   /**
    * Mengunggah Laporan Akhir Riset & Menandai Riset Selesai (Tahap 4 -> Siap Tahap 5)
    */
-  async submitFinalReport(studyId, { reportName, reportUrl, summary }) {
+  async submitFinalReport(studyId, body = {}) {
+    const {
+      reportName,
+      reportUrl,
+      summary,
+      finalReportName,
+      finalReportUrl,
+      finalReportSummary,
+    } = body;
+
     const study = await prisma.researchStudy.findUnique({
       where: { id: studyId },
     });
@@ -594,12 +603,16 @@ class StudyService {
       throw error;
     }
 
+    const resolvedName = (finalReportName || reportName || study.finalReportName || 'Laporan_Akhir_Riset.pdf').trim();
+    const resolvedUrl = finalReportUrl !== undefined ? finalReportUrl : (reportUrl !== undefined ? reportUrl : study.finalReportUrl);
+    const resolvedSummary = (finalReportSummary || summary || study.finalReportSummary || 'Laporan akhir hasil riset telah rampung.').trim();
+
     const updated = await prisma.researchStudy.update({
       where: { id: studyId },
       data: {
-        finalReportName: reportName?.trim() || 'Laporan_Akhir_Riset.pdf',
-        finalReportUrl: reportUrl || null,
-        finalReportSummary: summary?.trim() || 'Laporan akhir hasil riset telah rampung dan siap diekstraksi ke draf rekomendasi kebijakan.',
+        finalReportName: resolvedName,
+        finalReportUrl: resolvedUrl,
+        finalReportSummary: resolvedSummary,
         status: 'COMPLETED',
         endDate: new Date(),
       },

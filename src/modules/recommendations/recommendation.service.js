@@ -40,7 +40,7 @@ class RecommendationService {
    * Mengambil daftar seluruh naskah rekomendasi kebijakan
    */
   async getAllRecommendations(query = {}) {
-    const { search, status, impactLevel, targetPolicyType, page = 1, limit = 50 } = query;
+    const { search, status, impactLevel, targetPolicyType, opdId, page = 1, limit = 50 } = query;
     const where = {};
 
     if (status) {
@@ -53,6 +53,14 @@ class RecommendationService {
 
     if (targetPolicyType) {
       where.targetPolicyType = targetPolicyType;
+    }
+
+    if (opdId) {
+      where.study = {
+        proposal: {
+          opdId,
+        },
+      };
     }
 
     if (search) {
@@ -77,23 +85,13 @@ class RecommendationService {
         orderBy: [{ createdAt: 'desc' }],
         include: {
           study: {
-            select: {
-              id: true,
-              title: true,
-              fiscalYear: true,
-              executionScheme: true,
+            include: {
+              kakDocument: true,
+              workingDocuments: true,
               proposal: {
-                select: {
-                  id: true,
-                  code: true,
-                  category: true,
-                  opd: {
-                    select: {
-                      id: true,
-                      code: true,
-                      name: true,
-                    },
-                  },
+                include: {
+                  opd: true,
+                  supportingDocuments: true,
                 },
               },
             },
@@ -167,11 +165,13 @@ class RecommendationService {
                 adminVerification: true,
                 scoring: true,
                 kepalaApproval: true,
+                supportingDocuments: true,
               },
             },
             kakDocument: true,
             teamMembers: true,
             rkaItems: true,
+            workingDocuments: true,
           },
         },
         createdBy: {
@@ -376,6 +376,26 @@ class RecommendationService {
         },
       },
     });
+
+    // Sinkronisasi status kajian dan usulan menjadi COMPLETED
+    if (updated.study) {
+      await prisma.researchStudy.update({
+        where: { id: updated.study.id },
+        data: {
+          status: 'COMPLETED',
+          endDate: updated.study.endDate || new Date(),
+        },
+      });
+
+      if (updated.study.proposalId) {
+        await prisma.proposal.update({
+          where: { id: updated.study.proposalId },
+          data: {
+            status: 'COMPLETED',
+          },
+        });
+      }
+    }
 
     return updated;
   }

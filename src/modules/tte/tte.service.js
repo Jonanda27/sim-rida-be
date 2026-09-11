@@ -342,6 +342,32 @@ class TteService {
           signedAt: new Date(),
         },
       });
+
+      // Sinkronisasi status kajian dan usulan menjadi COMPLETED
+      if (rec.studyId) {
+        const study = await prisma.researchStudy.findUnique({
+          where: { id: rec.studyId },
+        });
+
+        if (study) {
+          await prisma.researchStudy.update({
+            where: { id: study.id },
+            data: {
+              status: 'COMPLETED',
+              endDate: study.endDate || new Date(),
+            },
+          });
+
+          if (study.proposalId) {
+            await prisma.proposal.update({
+              where: { id: study.proposalId },
+              data: {
+                status: 'COMPLETED',
+              },
+            });
+          }
+        }
+      }
     } else if (documentType === 'KAK_DOCUMENT') {
       const kak = await prisma.kakDocument.findUnique({
         where: { id: documentId },

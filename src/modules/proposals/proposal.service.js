@@ -127,6 +127,13 @@ class ProposalService {
             include: {
               kakDocument: true,
               rkaItems: true,
+              policyRecommendations: {
+                include: {
+                  signedBy: {
+                    select: { id: true, name: true, role: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -197,6 +204,13 @@ class ProposalService {
           include: {
             kakDocument: true,
             rkaItems: true,
+            policyRecommendations: {
+              include: {
+                signedBy: {
+                  select: { id: true, name: true, role: true },
+                },
+              },
+            },
           },
         },
       },
