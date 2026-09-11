@@ -15,7 +15,7 @@ class ApprovalService {
       where.status = 'SCORED';
     } else if (status === 'ALL') {
       where.status = {
-        in: ['SCORED', 'APPROVED', 'REJECTED'],
+        in: ['SCORED', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED'],
       };
     }
 

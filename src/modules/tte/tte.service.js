@@ -50,11 +50,33 @@ class TteService {
    * Mengambil antrean inbox dokumen yang menunggu TTE Kepala BRIDA
    */
   async getTteInbox() {
+    // 1. Ambil semua documentId yang sudah memiliki TTE valid di DigitalSignatureLog
+    const existingLogs = await prisma.digitalSignatureLog.findMany({
+      where: {
+        status: 'VALID',
+      },
+      select: {
+        documentType: true,
+        documentId: true,
+      },
+    });
+
+    const signedRecIds = existingLogs
+      .filter((l) => l.documentType === 'POLICY_RECOMMENDATION')
+      .map((l) => l.documentId);
+
+    const signedKakIds = existingLogs
+      .filter((l) => l.documentType === 'KAK_DOCUMENT')
+      .map((l) => l.documentId);
+
     const [pendingRecommendations, finalizedKaks] = await Promise.all([
-      // Rekomendasi Kebijakan yang diajukan (status: SUBMITTED)
+      // Rekomendasi Kebijakan yang diajukan (status: SUBMITTED) dan belum memiliki TTE sah
       prisma.policyRecommendation.findMany({
         where: {
           status: 'SUBMITTED',
+          id: {
+            notIn: signedRecIds,
+          },
         },
         orderBy: { updatedAt: 'desc' },
         include: {
@@ -70,10 +92,13 @@ class TteService {
           },
         },
       }),
-      // KAK Document yang sudah difinalisasi staff tapi belum tercatat tanda tangan digital
+      // KAK Document yang sudah difinalisasi staff tapi belum tercatat tanda tangan digital (TTE)
       prisma.kakDocument.findMany({
         where: {
           status: 'FINAL',
+          id: {
+            notIn: signedKakIds,
+          },
         },
         orderBy: { updatedAt: 'desc' },
         include: {
@@ -267,6 +292,21 @@ class TteService {
     let payloadForHash = {};
 
     // 2. Ambil dan validasi dokumen berdasarkan tipe
+    // Pastikan dokumen belum pernah ditandatangani TTE secara valid
+    const existingSignature = await prisma.digitalSignatureLog.findFirst({
+      where: {
+        documentType,
+        documentId,
+        status: 'VALID',
+      },
+    });
+
+    if (existingSignature) {
+      const error = new Error('Dokumen ini sudah ditandatangani secara elektronik (TTE) dan sah secara hukum.');
+      error.statusCode = 400;
+      throw error;
+    }
+
     if (documentType === 'POLICY_RECOMMENDATION') {
       const rec = await prisma.policyRecommendation.findUnique({
         where: { id: documentId },
@@ -337,6 +377,26 @@ class TteService {
           finalizedAt: new Date(),
         },
       });
+
+      // Jika kajian riset masih dalam tahap PLANNING, majukan ke IN_PROGRESS karena KAK telah sah TTE
+      if (kak.study && kak.study.status === 'PLANNING') {
+        await prisma.researchStudy.update({
+          where: { id: kak.study.id },
+          data: {
+            status: 'IN_PROGRESS',
+            startDate: new Date(),
+          },
+        });
+
+        if (kak.study.proposalId) {
+          await prisma.proposal.update({
+            where: { id: kak.study.proposalId },
+            data: {
+              status: 'IN_PROGRESS',
+            },
+          });
+        }
+      }
     }
 
     // 3. Generate SHA-256 Hash dan Nomor Sertifikat

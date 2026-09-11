@@ -49,6 +49,7 @@ const updateProposalSchema = z.object({
     estimatedBudget: z.number().nonnegative().optional().nullable(),
     estimatedDuration: z.number().int().min(1).max(24).optional().nullable(),
     supportingDocuments: z.array(documentItemSchema).optional(),
+    isSubmit: z.boolean().optional(),
   }),
 });
 

@@ -81,6 +81,7 @@ class ProposalService {
               name: true,
               nip: true,
               email: true,
+              phone: true,
             },
           },
           supportingDocuments: {
@@ -89,6 +90,7 @@ class ProposalService {
               name: true,
               size: true,
               uploadDate: true,
+              fileUrl: true,
             },
           },
           adminVerification: {
@@ -305,9 +307,14 @@ class ProposalService {
       ...(data.strategicImpact !== undefined && { strategicImpact: data.strategicImpact ? data.strategicImpact.trim() : null }),
       ...(data.urgencyLevel && { urgencyLevel: data.urgencyLevel }),
       ...(data.expectedOutput && { expectedOutput: data.expectedOutput }),
-      ...(data.estimatedBudget !== undefined && { estimatedBudget: data.estimatedBudget }),
+      ...(data.estimatedBudget !== undefined && { estimatedBudget: data.estimatedBudget !== null && data.estimatedBudget !== '' ? Number(data.estimatedBudget) : null }),
       ...(data.estimatedDuration !== undefined && { estimatedDuration: data.estimatedDuration ? Number(data.estimatedDuration) : 3 }),
     };
+
+    if (data.isSubmit) {
+      updateData.status = 'PENDING';
+      updateData.submittedAt = new Date();
+    }
 
     // Jika ada update dokumen pendukung
     if (data.supportingDocuments && Array.isArray(data.supportingDocuments)) {
@@ -356,6 +363,7 @@ class ProposalService {
       include: {
         opd: true,
         supportingDocuments: true,
+        revisions: true,
       },
     });
   }

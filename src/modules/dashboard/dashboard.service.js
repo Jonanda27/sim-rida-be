@@ -5,6 +5,18 @@ class DashboardService {
    * Executive Dashboard untuk Kepala BRIDA
    */
   async getKepalaDashboard() {
+    // Ambil semua dokumen yang sudah sah bertanda tangan TTE
+    const existingLogs = await prisma.digitalSignatureLog.findMany({
+      where: { status: 'VALID' },
+      select: { documentType: true, documentId: true },
+    });
+    const signedRecIds = existingLogs
+      .filter((l) => l.documentType === 'POLICY_RECOMMENDATION')
+      .map((l) => l.documentId);
+    const signedKakIds = existingLogs
+      .filter((l) => l.documentType === 'KAK_DOCUMENT')
+      .map((l) => l.documentId);
+
     const [
       totalProposals,
       pendingApprovalCount,
@@ -31,9 +43,19 @@ class DashboardService {
       // Rekomendasi yang telah disahkan
       prisma.policyRecommendation.count({ where: { status: 'FINALIZED' } }),
       // Rekomendasi menunggu TTE
-      prisma.policyRecommendation.count({ where: { status: 'SUBMITTED' } }),
-      // KAK Final menunggu pengesahan
-      prisma.kakDocument.count({ where: { status: 'FINAL' } }),
+      prisma.policyRecommendation.count({
+        where: {
+          status: 'SUBMITTED',
+          id: { notIn: signedRecIds },
+        },
+      }),
+      // KAK Final menunggu pengesahan TTE
+      prisma.kakDocument.count({
+        where: {
+          status: 'FINAL',
+          id: { notIn: signedKakIds },
+        },
+      }),
       // Group status usulan
       prisma.proposal.groupBy({
         by: ['status'],
@@ -165,52 +187,84 @@ class DashboardService {
     });
 
     // 4. Data Geospasial (GIS) Riset Wilayah Kabupaten Mimika (Papua Tengah)
-    const gisLocations = [
-      {
-        id: 'gis-1',
-        title: 'Kajian Pengembangan Ekowisata Bahari dan Budaya Pesisir Mimika',
-        distrik: 'Distrik Mimika Timur & Distrik Jita',
-        kapanewon: 'Distrik Mimika Timur & Distrik Jita',
-        coordinates: [-4.7231, 136.9125],
-        field: 'SOSIAL_BUDAYA',
-        status: 'IN_PROGRESS',
-        leadAgency: 'Dinas Pariwisata, Kebudayaan, Pemuda dan Olahraga',
-        allocatedBudget: 105000000,
+    // Ambil data kajian riil yang sedang atau telah berjalan di database
+    const dbStudies = await prisma.researchStudy.findMany({
+      where: {
+        status: { in: ['PLANNING', 'IN_PROGRESS', 'COMPLETED'] },
       },
-      {
-        id: 'gis-2',
-        title: 'Intervensi Percepatan Penurunan Stunting & Pelayanan Gizi Terpadu',
-        distrik: 'Distrik Mimika Baru & Distrik Wania',
-        kapanewon: 'Distrik Mimika Baru & Distrik Wania',
-        coordinates: [-4.5421, 136.8872],
-        field: 'SOSIAL_BUDAYA',
-        status: 'SCORED',
-        leadAgency: 'Dinas Kesehatan',
-        allocatedBudget: 85000000,
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        proposal: {
+          include: {
+            opd: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+            scoring: {
+              select: {
+                researchField: true,
+              },
+            },
+          },
+        },
       },
-      {
-        id: 'gis-3',
-        title: 'Smart Water Management & Drainase Pertanian Dataran Rendah',
-        distrik: 'Distrik Kuala Kencana & Distrik Iwaka',
-        kapanewon: 'Distrik Kuala Kencana & Distrik Iwaka',
-        coordinates: [-4.4289, 136.8512],
-        field: 'INOVASI_TEKNOLOGI',
-        status: 'IN_REVIEW',
-        leadAgency: 'Dinas Pertanian, Tanaman Pangan & Perkebunan',
-        allocatedBudget: 95000000,
-      },
-      {
-        id: 'gis-4',
-        title: 'Pemberdayaan Ekonomi Masyarakat Adat Amungme dan Kamoro',
-        distrik: 'Distrik Tembagapura & Distrik Kwamki Narama',
-        kapanewon: 'Distrik Tembagapura & Distrik Kwamki Narama',
-        coordinates: [-4.2612, 137.1145],
-        field: 'EKONOMI_PEMBANGUNAN',
-        status: 'SCORED',
-        leadAgency: 'BAPPEDA Kab. Mimika',
-        allocatedBudget: 120000000,
-      },
+    });
+
+    // Koordinat distrik representatif di Kabupaten Mimika
+    const mimikaDistricts = [
+      { distrik: 'Distrik Mimika Baru', coordinates: [-4.5421, 136.8872] },
+      { distrik: 'Distrik Kuala Kencana', coordinates: [-4.4289, 136.8512] },
+      { distrik: 'Distrik Wania', coordinates: [-4.5600, 136.8900] },
+      { distrik: 'Distrik Mimika Timur', coordinates: [-4.7231, 136.9125] },
+      { distrik: 'Distrik Iwaka', coordinates: [-4.4800, 136.7900] },
+      { distrik: 'Distrik Kwamki Narama', coordinates: [-4.4950, 136.9100] },
+      { distrik: 'Distrik Tembagapura', coordinates: [-4.2612, 137.1145] },
+      { distrik: 'Distrik Agimuga', coordinates: [-4.6300, 137.2800] },
     ];
+
+    let gisLocations = dbStudies.map((study, idx) => {
+      const districtLoc = mimikaDistricts[idx % mimikaDistricts.length];
+      return {
+        id: study.id,
+        title: study.title || study.proposal?.title || 'Kajian Riset BRIDA',
+        distrik: districtLoc.distrik,
+        kapanewon: districtLoc.distrik,
+        coordinates: districtLoc.coordinates,
+        field: study.proposal?.scoring?.researchField || study.proposal?.category || 'Kajian Kelitbangan',
+        status: study.status,
+        leadAgency: study.proposal?.opd?.name || 'Pemerintah Kabupaten Mimika',
+        allocatedBudget: Number(study.allocatedBudget || study.proposal?.estimatedBudget || 0),
+      };
+    });
+
+    // Jika belum ada research study, periksa proposal aktif yang telah disetujui / dinilai
+    if (gisLocations.length === 0) {
+      const activeProposals = await prisma.proposal.findMany({
+        where: { status: { in: ['APPROVED', 'SCORED', 'IN_PROGRESS', 'COMPLETED'] } },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: { opd: true, scoring: true },
+      });
+
+      gisLocations = activeProposals.map((prop, idx) => {
+        const districtLoc = mimikaDistricts[idx % mimikaDistricts.length];
+        return {
+          id: prop.id,
+          title: prop.title,
+          distrik: districtLoc.distrik,
+          kapanewon: districtLoc.distrik,
+          coordinates: districtLoc.coordinates,
+          field: prop.scoring?.researchField || prop.category || 'Kajian Kelitbangan',
+          status: prop.status,
+          leadAgency: prop.opd?.name || 'Pemerintah Kabupaten Mimika',
+          allocatedBudget: Number(prop.estimatedBudget || 0),
+        };
+      });
+    }
 
     return {
       kpis: {
