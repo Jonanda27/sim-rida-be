@@ -232,9 +232,6 @@ model AdminVerification {
   isUrgencyRelevant Boolean              @default(true) // Pilar 3: Tingkat Urgensi
   isStrategicAligned Boolean             @default(true) // Pilar 4: Keselarasan Strategis (Visi-Misi RPJMD)
   isResearchFeasible Boolean             @default(true) // Pilar 5: Kelayakan Penelitian (Data, Anggaran, Metode)
-
-  isBudgetFeasible  Boolean              @default(true)
-  isDataAdequate    Boolean              @default(true)
   
   decision          VerificationDecision @default(PASS)
   verificationNotes String               @db.Text
@@ -417,15 +414,19 @@ model PolicyRecommendation {
   studyId          String
   study            ResearchStudy        @relation(fields: [studyId], references: [id], onDelete: Cascade)
 
-  title            String
-  executiveSummary String               @db.Text
-  keyFindings      String               @db.Text
-  policyActions    String               @db.Text
-  targetPolicyType PolicyTargetType     @default(DRAFT_PERBUP)
-  impactLevel      RecommendationImpact @default(STRATEGIS_DAERAH)
-  targetOpdNames   String?              // e.g. "Dinas Pariwisata, Bappeda, Dinas Kebudayaan"
-  status           RecommendationStatus @default(DRAFT)
-  documentUrl      String?
+  title                 String
+  // 4 Bagian Baku Policy Brief Resmi BRIDA
+  executiveSummary      String               @db.Text // 1. Ringkasan Eksekutif
+  background            String               @default("") @db.Text // 2. Latar Belakang
+  policyRecommendations String               @default("") @db.Text // 3. Rekomendasi Kebijakan
+  conclusion            String               @default("") @db.Text // 4. Kesimpulan
+  correlatedDocs        String?              @db.Text // Dokumen Pendukung yang Dikorelasikan
+
+  targetPolicyType      PolicyTargetType     @default(DRAFT_PERBUP)
+  impactLevel           RecommendationImpact @default(STRATEGIS_DAERAH)
+  targetOpdNames        String?              // e.g. "Dinas Pariwisata, Bappeda, Dinas Kebudayaan"
+  status                RecommendationStatus @default(DRAFT)
+  documentUrl           String?
 
   createdById      String
   createdBy        User                 @relation("UserCreatedRecommendations", fields: [createdById], references: [id], onDelete: Cascade)

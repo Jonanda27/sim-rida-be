@@ -68,7 +68,9 @@ class RecommendationService {
         { title: { contains: search, mode: 'insensitive' } },
         { code: { contains: search, mode: 'insensitive' } },
         { executiveSummary: { contains: search, mode: 'insensitive' } },
-        { keyFindings: { contains: search, mode: 'insensitive' } },
+        { background: { contains: search, mode: 'insensitive' } },
+        { policyRecommendations: { contains: search, mode: 'insensitive' } },
+        { conclusion: { contains: search, mode: 'insensitive' } },
         { targetOpdNames: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -88,26 +90,17 @@ class RecommendationService {
             include: {
               kakDocument: true,
               workingDocuments: true,
+              teamMembers: true,
               proposal: {
-                include: {
-                  opd: true,
-                  supportingDocuments: true,
-                },
+                include: { opd: true, supportingDocuments: true },
               },
             },
           },
           createdBy: {
-            select: {
-              id: true,
-              name: true,
-            },
+            select: { id: true, name: true, nip: true },
           },
           signedBy: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
+            select: { id: true, name: true, nip: true },
           },
         },
       }),
@@ -115,11 +108,11 @@ class RecommendationService {
 
     return {
       recommendations,
-      pagination: {
+      meta: {
         total,
         page: Number(page),
         limit: Number(limit),
-        totalPages: Math.ceil(total / take) || 1,
+        totalPages: Math.ceil(total / Number(limit)),
       },
     };
   }
@@ -150,7 +143,7 @@ class RecommendationService {
   }
 
   /**
-   * Mengambil detail lengkap rekomendasi kebijakan
+   * Mengambil detail rekomendasi kebijakan berdasarkan ID
    */
   async getRecommendationById(id) {
     const recommendation = await prisma.policyRecommendation.findUnique({
@@ -158,36 +151,25 @@ class RecommendationService {
       include: {
         study: {
           include: {
+            kakDocument: true,
+            workingDocuments: true,
+            teamMembers: true,
             proposal: {
               include: {
                 opd: true,
-                createdBy: true,
+                supportingDocuments: true,
                 adminVerification: true,
                 scoring: true,
                 kepalaApproval: true,
-                supportingDocuments: true,
               },
             },
-            kakDocument: true,
-            teamMembers: true,
-            rkaItems: true,
-            workingDocuments: true,
           },
         },
         createdBy: {
-          select: {
-            id: true,
-            name: true,
-            nip: true,
-            email: true,
-          },
+          select: { id: true, name: true, nip: true },
         },
         signedBy: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
+          select: { id: true, name: true, nip: true },
         },
       },
     });
@@ -217,6 +199,10 @@ class RecommendationService {
     }
 
     const code = await this.generateRecommendationCode();
+    const background = (data.background || '').trim();
+    const policyRecommendations = (data.policyRecommendations || '').trim();
+    const conclusion = (data.conclusion || '').trim();
+    const correlatedDocs = (data.correlatedDocs || '').trim() || null;
 
     const recommendation = await prisma.policyRecommendation.create({
       data: {
@@ -224,8 +210,10 @@ class RecommendationService {
         studyId: data.studyId,
         title: data.title.trim(),
         executiveSummary: data.executiveSummary.trim(),
-        keyFindings: data.keyFindings.trim(),
-        policyActions: data.policyActions.trim(),
+        background,
+        policyRecommendations,
+        conclusion,
+        correlatedDocs,
         targetPolicyType: data.targetPolicyType || 'DRAFT_PERBUP',
         impactLevel: data.impactLevel || 'STRATEGIS_DAERAH',
         targetOpdNames:
@@ -277,8 +265,10 @@ class RecommendationService {
     const updateData = {};
     if (data.title) updateData.title = data.title.trim();
     if (data.executiveSummary) updateData.executiveSummary = data.executiveSummary.trim();
-    if (data.keyFindings) updateData.keyFindings = data.keyFindings.trim();
-    if (data.policyActions) updateData.policyActions = data.policyActions.trim();
+    if (data.background !== undefined) updateData.background = data.background.trim();
+    if (data.policyRecommendations !== undefined) updateData.policyRecommendations = data.policyRecommendations.trim();
+    if (data.conclusion !== undefined) updateData.conclusion = data.conclusion.trim();
+    if (data.correlatedDocs !== undefined) updateData.correlatedDocs = data.correlatedDocs ? data.correlatedDocs.trim() : null;
     if (data.targetPolicyType) updateData.targetPolicyType = data.targetPolicyType;
     if (data.impactLevel) updateData.impactLevel = data.impactLevel;
     if (data.targetOpdNames !== undefined) updateData.targetOpdNames = data.targetOpdNames;

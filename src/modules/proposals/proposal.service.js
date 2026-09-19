@@ -126,6 +126,7 @@ class ProposalService {
           researchStudy: {
             include: {
               kakDocument: true,
+              workingDocuments: true,
               rkaItems: true,
               policyRecommendations: {
                 include: {
@@ -203,6 +204,7 @@ class ProposalService {
         researchStudy: {
           include: {
             kakDocument: true,
+            workingDocuments: true,
             rkaItems: true,
             policyRecommendations: {
               include: {
@@ -442,8 +444,6 @@ class ProposalService {
       isUrgencyRelevant: data.isUrgencyRelevant ?? true,
       isStrategicAligned: data.isStrategicAligned ?? true,
       isResearchFeasible: data.isResearchFeasible ?? true,
-      isBudgetFeasible: data.isBudgetFeasible ?? true,
-      isDataAdequate: data.isDataAdequate ?? true,
       decision: data.decision,
       verificationNotes: data.verificationNotes.trim(),
       verifiedById: adminUser.id,

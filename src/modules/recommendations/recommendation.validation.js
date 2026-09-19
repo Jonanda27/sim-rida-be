@@ -27,9 +27,12 @@ const createRecommendationSchema = z.object({
   body: z.object({
     studyId: z.string().uuid('ID kajian riset tidak valid.'),
     title: z.string().min(10, 'Judul rekomendasi kebijakan minimal 10 karakter.'),
+    // 4 Bagian Baku Policy Brief
     executiveSummary: z.string().min(20, 'Ringkasan eksekutif minimal 20 karakter.'),
-    keyFindings: z.string().min(20, 'Temuan utama riset minimal 20 karakter.'),
-    policyActions: z.string().min(20, 'Butir-butir rekomendasi kebijakan minimal 20 karakter.'),
+    background: z.string().min(20, 'Latar belakang minimal 20 karakter.').optional(),
+    policyRecommendations: z.string().min(20, 'Rekomendasi kebijakan minimal 20 karakter.').optional(),
+    conclusion: z.string().min(20, 'Kesimpulan kebijakan minimal 20 karakter.').optional(),
+    correlatedDocs: z.string().optional().nullable(),
     targetPolicyType: policyTargetTypeEnum.default('DRAFT_PERBUP'),
     impactLevel: impactLevelEnum.default('STRATEGIS_DAERAH'),
     targetOpdNames: z.string().optional().nullable(),
@@ -45,8 +48,10 @@ const updateRecommendationSchema = z.object({
   body: z.object({
     title: z.string().min(10, 'Judul rekomendasi kebijakan minimal 10 karakter.').optional(),
     executiveSummary: z.string().min(20, 'Ringkasan eksekutif minimal 20 karakter.').optional(),
-    keyFindings: z.string().min(20, 'Temuan utama riset minimal 20 karakter.').optional(),
-    policyActions: z.string().min(20, 'Butir-butir rekomendasi kebijakan minimal 20 karakter.').optional(),
+    background: z.string().min(20, 'Latar belakang minimal 20 karakter.').optional(),
+    policyRecommendations: z.string().min(20, 'Rekomendasi kebijakan minimal 20 karakter.').optional(),
+    conclusion: z.string().min(20, 'Kesimpulan kebijakan minimal 20 karakter.').optional(),
+    correlatedDocs: z.string().optional().nullable(),
     targetPolicyType: policyTargetTypeEnum.optional(),
     impactLevel: impactLevelEnum.optional(),
     targetOpdNames: z.string().optional().nullable(),

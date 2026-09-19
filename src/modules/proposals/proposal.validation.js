@@ -63,8 +63,6 @@ const verifyProposalSchema = z.object({
     isUrgencyRelevant: z.boolean().default(true),
     isStrategicAligned: z.boolean().default(true),
     isResearchFeasible: z.boolean().default(true),
-    isBudgetFeasible: z.boolean().default(true).optional(),
-    isDataAdequate: z.boolean().default(true).optional(),
     decision: z.enum(['PASS', 'RETURN', 'REJECT'], {
       errorMap: () => ({ message: 'Keputusan validasi harus PASS (Loloskan ke KAK), RETURN (Kembalikan untuk revisi), atau REJECT (Tolak usulan).' }),
     }),
